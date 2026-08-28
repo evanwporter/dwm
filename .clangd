@@ -1,0 +1,4 @@
+If:
+  PathMatch: (.*/)?config(\.def)?\.h
+Diagnostics:
+  Suppress: '*'
