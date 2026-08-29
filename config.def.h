@@ -33,6 +33,7 @@ static const char *colors[][3] = {
 	[SchemeNorm] = { normfgcolor, normbgcolor, normbordercolor },
 	[SchemeSel]  = { selfgcolor,  selbgcolor,  selbordercolor  },
 	[SchemeStatus] = { statusfgcolor, statusbgcolor, statusbordercolor },
+	[SchemeHid]    = { selbgcolor, normbgcolor, selbgcolor },
 };
 
 /* tagging */
@@ -93,8 +94,10 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_space,  spawn,          {.v = dmenucmd } },
 	{ MODKEY,                       XK_Return, spawn,          {.v = termcmd } },
 	{ MODKEY,                       XK_b,      togglebar,      {0} },
-	{ MODKEY,                       XK_j,      focusstack,     {.i = +1 } },
-	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 } },
+	{ MODKEY,                       XK_j,      focusstackvis,  {.i = +1 } },
+	{ MODKEY,                       XK_k,      focusstackvis,  {.i = -1 } },
+	{ MODKEY|ShiftMask,             XK_j,      focusstackhid,  {.i = +1 } },
+	{ MODKEY|ShiftMask,             XK_k,      focusstackhid,  {.i = -1 } },
 	{ MODKEY,                       XK_i,      incnmaster,     {.i = +1 } },
 	{ MODKEY,                       XK_d,      incnmaster,     {.i = -1 } },
 	{ MODKEY,                       XK_h,      setmfact,       {.f = -0.05} },
@@ -113,6 +116,9 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
 	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
+	{ MODKEY,                       XK_s,      show,           {0} },
+	{ MODKEY|ShiftMask,             XK_s,      showall,        {0} },
+	{ MODKEY|ControlMask,           XK_h,      hide,           {0} },
     
     /// Audio Mute
     { 0,                            XF86XK_AudioMute,           spawn,          SHCMD("pactl set-sink-mute @DEFAULT_SINK@ toggle; pkill -RTMIN+1 dwmblocks") },
@@ -145,6 +151,7 @@ static const Button buttons[] = {
 	/* click                event mask      button          function        argument */
 	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0} },
 	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[2]} },
+	{ ClkWinTitle,          0,              Button1,        togglewin,      {0} },
 	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
 	{ ClkStatusText,        0,              Button2,        spawn,          {.v = termcmd } },
 	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0} },
