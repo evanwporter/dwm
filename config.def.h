@@ -1,7 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
 /* appearance */
-static const unsigned int borderpx       = 1;   /* border pixel of windows */
+static const unsigned int borderpx       = 3;   /* border pixel of windows */
 static const unsigned int snap           = 32;  /* snap pixel */
 static const unsigned int systraypinning = 0;   /* 0: sloppy systray follows selected monitor, >0: pin systray to monitor X */
 static const unsigned int systrayonleft  = 0;   /* 0: systray in the right corner, >0: systray on left of status text */
@@ -16,18 +16,23 @@ static const char *fonts[]               = {
 };
 static const char dmenufont[]            = "JetBrainsMonoNL NFP:size=20:style=Bold";
 
-static char normfgcolor[]                = "#bbbbbb";
-static char normbgcolor[]                = "#222222";
-static char normbordercolor[]            = "#444444";
+static char normfgcolor[]                = "#ebdbb2";
+static char normbgcolor[]                = "#282828";
+static char normbordercolor[]            = "#3c3836";
 
-static char selfgcolor[]                 = "#eeeeee";
-static char selbgcolor[]                 = "#005577";
-static char selbordercolor[]             = "#005577";
+static char selfgcolor[]                 = "#fbf1c7";
+static char selbgcolor[]                 = "#d65d0e";
+static char selbordercolor[]             = "#d65d0e";
+
+static char statusfgcolor[]              = "#ebdbb2";
+static char statusbgcolor[]              = "#282828";
+static char statusbordercolor[]          = "#3c3836";
 
 static const char *colors[][3] = {
 	/*               fg               bg             border */
 	[SchemeNorm] = { normfgcolor, normbgcolor, normbordercolor },
 	[SchemeSel]  = { selfgcolor,  selbgcolor,  selbordercolor  },
+	[SchemeStatus] = { statusfgcolor, statusbgcolor, statusbordercolor },
 };
 
 /* tagging */
