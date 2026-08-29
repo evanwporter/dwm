@@ -25,6 +25,7 @@
 								fontconfig
 								freetype
 								libx11
+								libxcb
 								libxft
 								libxinerama
 							];
