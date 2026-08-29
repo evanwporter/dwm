@@ -21,8 +21,8 @@ static char normbgcolor[]                = "#282828";
 static char normbordercolor[]            = "#3c3836";
 
 static char selfgcolor[]                 = "#fbf1c7";
-static char selbgcolor[]                 = "#d65d0e";
-static char selbordercolor[]             = "#d65d0e";
+static char selbgcolor[]                 = "#e78a3e";
+static char selbordercolor[]             = "#e78a3e";
 
 static char statusfgcolor[]              = "#ebdbb2";
 static char statusbgcolor[]              = "#282828";
@@ -86,7 +86,7 @@ static const char *dmenucmd[] = {
     "-sf", selfgcolor, 
     NULL 
 };
-static const char *termcmd[]  = { "kitty", NULL };
+static const char *termcmd[]  = { "/bin/sh", "-c", "exec \"$TERMINAL\"", NULL };
 static const char *flameshot[] = { "flameshot", "gui", NULL };
 
 static const Key keys[] = {
@@ -108,7 +108,6 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[1]} },
 	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[2]} },
-	{ MODKEY,                       XK_space,  setlayout,      {0} },
 	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
 	{ MODKEY|ShiftMask,             XK_0,      tag,            {.ui = ~0 } },
