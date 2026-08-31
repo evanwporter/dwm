@@ -48,14 +48,16 @@ static const Rule rules[] = {
 	/* class     instance  title           tags mask  isfloating  isterminal  noswallow  monitor */
 	{ "Gimp",    NULL,     NULL,           0,         1,          0,           0,        -1 },
 	{ "Firefox", NULL,     NULL,           1 << 8,    0,          0,          -1,        -1 },
-	{ "st", NULL, NULL,           0,         0,          1,           0,        -1 },
+	{ "kitty", NULL, NULL,           0,         0,          1,           0,        -1 },
+	{ "st-256color", NULL, NULL,           0,         0,          1,           0,        -1 },
 	{ NULL,      NULL,     "Event Tester", 0,         0,          0,           1,        -1 }, /* xev */
 };
 
 /* layout(s) */
 static const float mfact     = 0.55; /* factor of master area size [0.05..0.95] */
 static const int nmaster     = 1;    /* number of clients in master area */
-static const int resizehints = 1;    /* 1 means respect size hints in tiled resizals */
+static const int resizehints = 0;    /* 1 means respect size hints in tiled resizals */
+static const int decorhints  = 1;    /* 1 means respect client decoration hints */
 static const int lockfullscreen = 1; /* 1 will force focus on the fullscreen window */
 static const int refreshrate = 120;  /* refresh rate (per second) for client move/resize */
 
@@ -90,7 +92,10 @@ static const char *dmenucmd[] = {
     NULL 
 };
 static const char *termcmd[]  = { "/bin/sh", "-c", "exec \"$TERMINAL\"", NULL };
-static const char *flameshot[] = { "flameshot", "gui", NULL };
+static const char *networkcmd[] = { "nm-connection-editor", NULL };
+static const char *flameshot[] = {
+  "flameshot", "gui", NULL
+};
 
 static const Key keys[] = {
 	/* modifier                     key        function        argument */
