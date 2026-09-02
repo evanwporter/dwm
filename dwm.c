@@ -62,6 +62,7 @@
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
+#define WORKSPACEMASK           ((1 << LENGTH(workspaces)) - 1)
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
 
 #define MWM_HINTS_FLAGS_FIELD       0
@@ -112,21 +113,70 @@ typedef struct {
 } Button;
 
 typedef struct Monitor Monitor;
+
+/// In the context of dwm the Client represents a window that is managed by the
+/// window manager. A set of clients is represented in form of a linked list.
 typedef struct Client Client;
 struct Client {
+    /// The name holds the window title.
 	char name[256];
+
+    /// The mina and maxa represents the minimum and maximum aspect ratios as per size hints.
 	float mina, maxa;
+
+	/// The client x, y coordinates and size (width, height).
 	int x, y, w, h;
+
 	int oldx, oldy, oldw, oldh;
+
+    /* These variables are all in relation to size hints.
+	 *    basew - base width
+	 *    baseh - base height
+	 *    incw - width increment
+	 *    inch - height increment
+	 *    minw - minimum width
+	 *    minh - minimum height
+	 *    maxw - maximum width
+	 *    maxh - maximum height
+	 *    hintsvalid - flag indicating whether size hints need to be refreshed
+	 */
 	int basew, baseh, incw, inch, maxw, maxh, minw, minh, hintsvalid;
+
 	int bw, oldbw;
+
+	/* This represents the tags the client is shown on. This is a bitmask where each bit
+	 * represents whether the client is shown on that tag.
+	 *
+	 * As an example consider the hexadecimal value of 0x51 (decimal 81) which has a binary
+	 * value of:
+	 *    001010001  - bitmask
+	 *    987654321  - tags
+	 *
+	 * This would mean that the client is shown on tags 1, 5 and 7.
+	 */
 	unsigned int tags;
+
+    /// The workspace the client is attached too
+    unsigned int workspace;
+
 	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen, isterminal, noswallow;
 	pid_t pid;
+
+	/// The next client in the client list, which is a linked list. The client list controls the
+	/// order in which clients are tiled.
 	Client *next;
+
+	/* The next client in the stacking order list, which is also a linked list. The stacking
+	 * order indicates which window is on top of others as well as the order in which clients
+	 * had focus. */
 	Client *snext;
+
 	Client *swallowing;
+
+    /// The monitor this client belongs to.
 	Monitor *mon;
+
+    /// The managed window that this client represents.
 	Window win;
 };
 
@@ -144,25 +194,143 @@ typedef struct {
 
 struct Monitor {
 	char ltsymbol[16];
+
+    /// What percentage of the screen master gets
 	float mfact;
+
+	/* This represents the number of clients that are to be tiled in the master area. This has
+	 * no upper limit but cannot be less than 0. The default value is configured in the
+	 * configuration file and the value is adjusted via the incnmaster function. */
+    //  Default nmaster = 1:
+    // ┌───────────┬────┐
+    // │           │ C2 │
+    // │    C1     ├────┤
+    // │  (master) │ C3 │
+    // │           ├────┤
+    // │           │ C4 │
+    // └───────────┴────┘
+    //
+    // With nmaster = 2:
+    // ┌───────────┬────┐
+    // │    C1     │ C3 │
+    // │  (master) ├────┤
+    // ├───────────┤ C4 │
+    // │    C2     ├────┤
+    // │ (also     │ C5 │
+    // │  master)  │    │
+    // └───────────┴────┘
 	int nmaster;
+
 	int num;
+
+	/* The by variable defines the bar windows position on the y axis and this is set in the
+	 * updatebarpos function. */
 	int by;               /* bar geometry */
 	int btw;              /* width of tasks portion of bar */
 	int bt;               /* number of tasks */
-	int mx, my, mw, mh;   /* screen size */
-	int wx, wy, ww, wh;   /* window area  */
+
+	/* These variables represents the position and dimensions of the monitor.
+	 *    mx - monitor position on the x-axis
+	 *    my - monitor position on the y-axis
+	 *    mw - the monitor's width
+	 *    mh - the monitor's height
+	 */
+	int mx, my, mw, mh;
+
+	/* These variables represents the position and dimensions of the window area, as in the part
+	 * of the monitor where windows are tiled. This is the space of the monitor excluding the
+	 * bar window. These are set in the updatebarpos function.
+	 *    wx - window area position on the x-axis
+	 *    wy - window area position on the y-axis
+	 *    ww - the window area's width
+	 *    wh - the window area's height
+	 */
+	int wx, wy, ww, wh;
+
+	/* The seltags variable is either 0 or 1 and represents the currently selected tagset.
+	 *
+	 * This allows for a clever mechanism where one can easily flip between the current and
+	 * previous tagset by simply flipping the value of seltags:
+	 *
+	 *    selmon->seltags ^= 1;
+	 *
+	 * For this reason when referring to the selected tags for a monitor you will often find
+	 * these kind of patterns:
+	 *
+	 *    m->tagset[m->seltags]
+	 *    selmon->tagset[selmon->seltags]
+	 *    c->mon->tagset[c->mon->seltags]
+	 *
+	 * In principle this could just have been defined as two variables for the monitor.
+	 *
+	 *    m->tags
+	 *    m->prevtags
+	 *
+	 * which would make the above patterns slightly easier to read, i.e.
+	 *
+	 *    m->tags
+	 *    selmon->tags
+	 *    c->mon->tags
+	 *
+	 * The benefit of using this mechanism, however, is that we save on a single line of code
+	 * in the view function when the argument is 0 and we toggle back to the previous view.
+	 */
 	unsigned int seltags;
+
+	/* The sellt variable is either 0 or 1 and represents the currently selected layout. This
+	 * follows the same mechanism as seltags above giving patterns such a:
+	 *
+	 *    m->lt[m->sellt]
+	 *    selmon->lt[selmon->sellt]
+	 *    c->mon->lt[c->mon->sellt]
+	 */
 	unsigned int sellt;
+
+	/* This array holds the previously and currently viewed tags for the monitor, the index of
+	 * which is indicated by the seltags variable. */
 	unsigned int tagset[2];
+
+	/* This represents the workspaces the monitor owns.
+	 *
+	 * As an example consider the hexadecimal value of 0x51 (decimal 81) which has a binary
+	 * value of:
+	 *    001010001  - bitmask
+	 *    987654321  - workspaces
+	 *
+	 * This would mean that the monitor owns workspaces 1, 5 and 7.
+	 */
+    unsigned int workspaces;
+
+    /// The currently selected workspace and the one being displayed on the monitor.
+    /// Also it has the previously displayed workspace.
+    int selected_workspaces[2];
+
+	/* Internal flag indicating whether the bar is shown or not. */
 	int showbar;
+
+	/* Internal flag indicating whether the bar is shown at the top or at the bottom. */
 	int topbar;
+
 	int hidsel;
+
+	/* The client list. This represents the start of a linked list of clients which determines
+	 * the order in which clients are tiled. */
 	Client *clients;
+
+	/* This represents the monitor's selected client. */
 	Client *sel;
+
+	/* The stacking order list. This represents the order in which client windows are stacked on
+	 * top of each other, as well as the order in which clients had last focus. */
 	Client *stack;
+
+	/* Monitors are also managed as a linked list with the mons variable referring to the first
+	 * monitor. The next variable on the monitor refers to the next monitor in the list. */
 	Monitor *next;
+
+	/* This is the bar window which is used to draw the bar. Each monitor has their own bar. */
 	Window barwin;
+
 	const Layout *lt[2];
 };
 
@@ -454,6 +622,59 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int *bw, int interact)
 	return *x != c->x || *y != c->y || *w != c->w || *h != c->h || *bw != c->bw;
 }
 
+/* The arrange call handles moving clients into and out of view depending on what tags are shown
+ * and it triggers a re-arrangement of windows according to the selected layout.
+ *
+ * Passing a NULL value to arrange results in the above happening for all monitors. Passing a
+ * specific monitor to the arrange function results in the above happening for that monitor and
+ * in addition a restack is applied which will call drawbar.
+ *
+ * @called_from configurenotify if the monitor setup has changed
+ * @called_from incnmaster after the number of master clients have been adjusted
+ * @called_from manage upon managing a new client
+ * @called_from pop in relation to a call to zoom to make a client window the new master
+ * @called_from propertynotify in relation to a window becoming floating due to being transient
+ * @called_from sendmon after moving a client window to another monitor
+ * @called_from setfullscreen when a fullscreen window exits fullscreen
+ * @called_from setlayout if there visible client windows to be arranged after changing layout
+ * @called_from setmfact after the master / stack factor has been changed
+ * @called_from tag when changing tags for the selected client
+ * @called_from togglebar after revealing or hiding the bar
+ * @called_from togglefloating after changing the floating state for the selected client
+ * @called_from toggletag after changing a client's tags
+ * @called_from toggleview after bringing tags into or out of view
+ * @called_from unmanage after unmanaging a window
+ * @called_from view after changing the tag(s) viewed
+ * @calls showhide to move client windows into and out of view
+ * @calls arrangemon to trigger re-arrangement of windows according to the selected layout
+ * @calls restack to draw the bar and adjust which clients are shown above others
+ *
+ * Internal call stack:
+ *    run -> configurenotify -> arrange
+ *    run -> buttonpress -> tag -> arrange
+ *    run -> buttonpress -> movemouse / resizemouse -> sendmon -> arrange
+ *    run -> buttonpress -> movemouse / resizemouse -> togglefloating -> arrange
+ *    run -> buttonpress -> togglefloating -> arrange
+ *    run -> buttonpress -> toggletag -> arrange
+ *    run -> buttonpress -> toggleview -> arrange
+ *    run -> buttonpress -> view -> arrange
+ *    run -> keypress -> incnmaster -> arrange
+ *    run -> keypress -> setlayout -> arrange
+ *    run -> keypress -> setmfact -> arrange
+ *    run -> keypress -> zoom -> pop -> arrange
+ *    run -> keypress -> tagmon -> sendmon -> arrange
+ *    run -> keypress -> tag -> arrange
+ *    run -> keypress -> togglebar -> arrange
+ *    run -> keypress -> togglefloating -> arrange
+ *    run -> keypress -> toggletag -> arrange
+ *    run -> keypress -> toggleview -> arrange
+ *    run -> keypress -> view -> arrange
+ *    run -> maprequest -> manage -> arrange
+ *    run -> propertynotify -> arrange
+ *    run -> clientmessage / updatewindowtype -> setfullscreen -> arrange
+ *    run -> destroynotify / unmapnotify -> unmanage -> arrange
+ *    main -> cleanup -> view -> arrange
+ */
 void
 arrange(Monitor *m)
 {
@@ -468,6 +689,16 @@ arrange(Monitor *m)
 		arrangemon(m);
 }
 
+/* This sets / updates the layout symbol for the monitor and calls the layout arrange function
+ * (tile or monocle) to resize and reposition client windows.
+ *
+ * @called_from arrange to handle layout arrangements
+ * @calls monocle to resize and reposition client windows
+ * @calls tile to resize and reposition client windows
+ *
+ * Internal call stack:
+ *    ~ -> arrange -> arrangemon
+ */
 void
 arrangemon(Monitor *m)
 {
@@ -1188,29 +1419,50 @@ focusstackhid(const Arg *arg)
 	focusstack(arg->i, 1);
 }
 
+/// User function to move the focused window up or down the stack
 void
 focusstack(int inc, int hid)
 {
 	Client *c = NULL, *i = NULL;
 
+    /* Bail if there is no selected client on the current monitor, or if the selected client is
+	 * fullscreen and we disallow focus to drift from fullscreen windows. */
 	if ((!selmon->sel && !hid) || (selmon->sel && selmon->sel->isfullscreen && lockfullscreen))
 		return;
+
 	if (!selmon->clients)
 		return;
+
+	/* If the input value is positive then we move forward to find the next visible client. */
 	if (inc > 0) {
+		/* This searches through the client list for the next visible client. */
 		if (selmon->sel)
 			for (c = selmon->sel->next; c && (!ISVISIBLE(c) || (!hid && HIDDEN(c))); c = c->next);
+
+		/* If we have exhausted the list and there are no more visible clients, then we wrap
+		 * around and search for the first visible client in the list. */
 		if (!c)
 			for (c = selmon->clients; c && (!ISVISIBLE(c) || (!hid && HIDDEN(c))); c = c->next);
-	} else {
+	}
+
+    /* Otherwise we move backward to find the prior visible client. */
+    else {
+		/* Start from the beginning of the linked list and find the last visible client that
+		 * is not the selected client. */
 		for (i = selmon->clients; i && i != selmon->sel; i = i->next)
 			if (ISVISIBLE(i) && !(!hid && HIDDEN(i)))
 				c = i;
+		/* If there are no visible clients prior to the selected one then we simply continue
+		 * where the previous for loop left off and we search for the very last visible
+		 * client. */
 		if (!c)
 			for (; i; i = i->next)
 				if (ISVISIBLE(i) && !(!hid && HIDDEN(i)))
 					c = i;
 	}
+
+	/* If we did find a client, and in principle we should as there is at least one visible
+	 * window, then we give input focus to that client. */
 	if (c) {
 		focus(c);
 		restack(selmon);
@@ -1437,6 +1689,11 @@ killclient(const Arg *arg)
 	}
 }
 
+/* The manage function is what makes the window manager manage the given window. It determines how
+ * the window is going to be managed based on client rules and various window properties and
+ * states. A managed window is represented by a client, which in turn is added to the client list
+ * and stacking order list for the designated monitor.
+ */
 void
 manage(Window w, XWindowAttributes *wa)
 {
@@ -1552,18 +1809,45 @@ maprequest(XEvent *e)
 		manage(ev->window, &wa);
 }
 
+/* This is what handles the monocle layout arrangement.
+ *
+ * @called_from arrangemon
+ * @calls snprintf to update the layout symbol of the monitor
+ * @calls nexttiled to get the next tiled client
+ * @calls resize to change the size and position of client windows
+ *
+ * Internal call stack:
+ *    ~ -> arrange -> arrangemon -> monocle
+ */
 void
 monocle(Monitor *m)
 {
+    /* number of clients */
 	unsigned int n = 0;
+
 	Client *c;
 
+	/* This for loop is just to get a count of all visible clients on the selected tag(s).
+	 * Note that this counts both tiled and floating clients. This number is then used to
+	 * update the layout symbol in the bar to say e.g. [3].
+	 */
 	for (c = m->clients; c; c = c->next)
 		if (ISVISIBLE(c))
 			n++;
+
+    // Updates the mode symbol in the status bar (e.g [3])
+    // with the number of windows / pages in the current tag
 	if (n > 0) /* override layout symbol */
 		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
+
+	/* This just loops through all tiled clients and resizes them to take up the entire window
+	 * area. Note that this does not have anything to do with which window is shown on top, that
+	 * is determined by the window that has focus which will be above other tiled windows in the
+	 * stack.
+	 */
+    // It resizes all of the windows in preparation for them to be focused
 	for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
+        // Sets it to the fully window width and height
 		resize(c, m->wx, m->wy, m->ww, m->wh, 0, 0);
 }
 
@@ -1644,10 +1928,26 @@ movemouse(const Arg *arg)
 	}
 }
 
+/* This returns the next tiled client on the currently selected tag(s).
+ *
+ * Given an input client c the function returns the next visible tiled client in the list, or NULL
+ * if there are no more subsequent tiled clients.
+ *
+ * @called_from tile for tiling purposes
+ * @called_from monocle for tiling purposes
+ * @called_from zoom to check if the selected client is the master client
+ *
+ * Internal call stack:
+ *    ~ -> arrange -> arrangemon -> tile / monocle -> nexttiled
+ *    run -> keypress -> zoom -> nexttiled
+ */
 Client *
 nexttiled(Client *c)
 {
+	/* Loop through all clients following the given client c and ignore clients on other tags
+	 * and floating clients. */
 	for (; c && (c->isfloating || !ISVISIBLE(c) || HIDDEN(c)); c = c->next);
+	/* Return the client found, if any, will be NULL if the linked list is exhausted. */
 	return c;
 }
 
@@ -1752,6 +2052,32 @@ removesystrayicon(Client *i)
 	free(i);
 }
 
+/* The resize function resizes a client window to the dimensions given, but only if the new
+ * position and dimensions would lead to a change in size or position after size hints have
+ * been taken into account.
+ *
+ * The interact flag indicates whether the resize is due to the user manually interacting with the
+ * window or if it is due to automated processes like tiling arrangements. The difference has to
+ * do with the boundaries that are imposed; if the user is manually resizing or moving the window
+ * then they can freely move that window in the available screen space, but if the resize is not
+ * interactive then the placement is restricted to be, at least partially, within the monitor's
+ * window area. Refer to the applysizehints function for more details.
+ *
+ * @called_from monocle for tiling purposes
+ * @called_from movemouse to change position of the client window
+ * @called_from resizemouse to change the size of the client window
+ * @called_from showhide to move the window back into view when shown
+ * @called_from tile for tiling purposes
+ * @called_from togglefloating to resize the window taking size hints into account
+ * @calls applysizehints to check if the window needs resizing taking size hints into account
+ * @calls resizeclient to resize the client
+ *
+ * Internal call stack:
+ *    ~ -> arrange -> showhide -> resize
+ *    ~ -> arrange -> arrangemon -> monocle / tile -> resize
+ *    run -> buttonpress -> movemouse / resizemouse / togglefloating -> resize
+ *    run -> keypress -> togglefloating -> resize
+ */
 void
 resize(Client *c, int x, int y, int w, int h, int bw, int interact)
 {
@@ -2266,20 +2592,43 @@ tagmon(const Arg *arg)
 	sendmon(selmon->sel, dirtomon(arg->i));
 }
 
+/* This is what handles the tile layout arrangement.
+ *
+ * @called_from arrangemon
+ * @calls nexttiled to get the next tiled client
+ * @calls resize to change the size and position of client windows
+ *
+ * Internal call stack:
+ *    ~ -> arrange -> arrangemon -> tile
+ */
 void
 tile(Monitor *m)
 {
+	/* Variables:
+	 *    i - iterator, represents number of clients processed
+	 *    n - total number of clients
+	 *    h - calculated client height
+	 *    mw - calculated width of the master area
+	 *    my - calculated master area y position relative to the window area
+	 *    ty - calculated stack area y position relative to window area (tile y, the naming is
+	 *         likely a remnant from a time before the nmaster patch was applied upstream -
+	 *         before that the master area had only one client and the remaining clients would
+	 *         be tiled in the tile area)
+	 */
 	unsigned int i, n, h, mw, my, ty, bw;
+
 	Client *c;
 
+    // Sets n to number of tiled counts
 	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
+
 	if (n == 0)
 		return;
-
 	if (n == 1)
 		bw = 0;
 	else
 		bw = borderpx;
+
 	if (n > m->nmaster)
 		mw = m->nmaster ? m->ww * m->mfact : 0;
 	else
