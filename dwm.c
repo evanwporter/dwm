@@ -216,6 +216,7 @@ struct Monitor {
     // │  master)  │    │
     // └───────────┴────┘
 	int nmaster;
+
 	int num;
 
 	/* The by variable defines the bar windows position on the y axis and this is set in the
@@ -242,9 +243,50 @@ struct Monitor {
 	 */
 	int wx, wy, ww, wh;
 
+	/* The seltags variable is either 0 or 1 and represents the currently selected tagset.
+	 *
+	 * This allows for a clever mechanism where one can easily flip between the current and
+	 * previous tagset by simply flipping the value of seltags:
+	 *
+	 *    selmon->seltags ^= 1;
+	 *
+	 * For this reason when referring to the selected tags for a monitor you will often find
+	 * these kind of patterns:
+	 *
+	 *    m->tagset[m->seltags]
+	 *    selmon->tagset[selmon->seltags]
+	 *    c->mon->tagset[c->mon->seltags]
+	 *
+	 * In principle this could just have been defined as two variables for the monitor.
+	 *
+	 *    m->tags
+	 *    m->prevtags
+	 *
+	 * which would make the above patterns slightly easier to read, i.e.
+	 *
+	 *    m->tags
+	 *    selmon->tags
+	 *    c->mon->tags
+	 *
+	 * The benefit of using this mechanism, however, is that we save on a single line of code
+	 * in the view function when the argument is 0 and we toggle back to the previous view.
+	 */
 	unsigned int seltags;
+
+	/* The sellt variable is either 0 or 1 and represents the currently selected layout. This
+	 * follows the same mechanism as seltags above giving patterns such a:
+	 *
+	 *    m->lt[m->sellt]
+	 *    selmon->lt[selmon->sellt]
+	 *    c->mon->lt[c->mon->sellt]
+	 */
 	unsigned int sellt;
+
+	/* This array holds the previously and currently viewed tags for the monitor, the index of
+	 * which is indicated by the seltags variable. */
 	unsigned int tagset[2];
+
+	/* Internal flag indicating whether the bar is shown or not. */
 	int showbar;
 
 	/* Internal flag indicating whether the bar is shown at the top or at the bottom. */
