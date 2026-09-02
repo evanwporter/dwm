@@ -477,6 +477,8 @@ static void togglefloating(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void togglewin(const Arg *arg);
+static void treenode_add(Client *c);
+static void treenode_remove(Client *c);
 static void unfocus(Client *c, int setfocus);
 static void unmanage(Client *c, int destroyed);
 static void unmapnotify(XEvent *e);
@@ -1462,29 +1464,50 @@ focusstackhid(const Arg *arg)
 	focusstack(arg->i, 1);
 }
 
+/// User function to move the focused window up or down the stack
 void
 focusstack(int inc, int hid)
 {
 	Client *c = NULL, *i = NULL;
 
+    /* Bail if there is no selected client on the current monitor, or if the selected client is
+	 * fullscreen and we disallow focus to drift from fullscreen windows. */
 	if ((!selmon->sel && !hid) || (selmon->sel && selmon->sel->isfullscreen && lockfullscreen))
 		return;
+
 	if (!selmon->clients)
 		return;
+
+	/* If the input value is positive then we move forward to find the next visible client. */
 	if (inc > 0) {
+		/* This searches through the client list for the next visible client. */
 		if (selmon->sel)
 			for (c = selmon->sel->next; c && (!ISVISIBLE(c) || (!hid && HIDDEN(c))); c = c->next);
+
+		/* If we have exhausted the list and there are no more visible clients, then we wrap
+		 * around and search for the first visible client in the list. */
 		if (!c)
 			for (c = selmon->clients; c && (!ISVISIBLE(c) || (!hid && HIDDEN(c))); c = c->next);
-	} else {
+	} 
+	
+    /* Otherwise we move backward to find the prior visible client. */
+    else {
+		/* Start from the beginning of the linked list and find the last visible client that
+		 * is not the selected client. */
 		for (i = selmon->clients; i && i != selmon->sel; i = i->next)
 			if (ISVISIBLE(i) && !(!hid && HIDDEN(i)))
 				c = i;
+		/* If there are no visible clients prior to the selected one then we simply continue
+		 * where the previous for loop left off and we search for the very last visible
+		 * client. */
 		if (!c)
 			for (; i; i = i->next)
 				if (ISVISIBLE(i) && !(!hid && HIDDEN(i)))
 					c = i;
 	}
+
+	/* If we did find a client, and in principle we should as there is at least one visible
+	 * window, then we give input focus to that client. */
 	if (c) {
 		focus(c);
 		restack(selmon);
@@ -1711,6 +1734,11 @@ killclient(const Arg *arg)
 	}
 }
 
+/* The manage function is what makes the window manager manage the given window. It determines how
+ * the window is going to be managed based on client rules and various window properties and
+ * states. A managed window is represented by a client, which in turn is added to the client list
+ * and stacking order list for the designated monitor.
+ */
 void
 manage(Window w, XWindowAttributes *wa)
 {
@@ -1733,7 +1761,11 @@ manage(Window w, XWindowAttributes *wa)
 	c->h = c->oldh = wa->height;
 	c->oldbw = wa->border_width;
 
+    treenode_add(c);
+
+	/* Reads and stores the window title in the client's name variable. */
 	updatetitle(c);
+
 	if (XGetTransientForHint(dpy, w, &trans) && (t = wintoclient(trans))) {
 		c->mon = t->mon;
 		c->tags = t->tags;
@@ -1778,8 +1810,15 @@ manage(Window w, XWindowAttributes *wa)
 		c->isfloating = c->oldstate = trans != None || c->isfixed;
 	if (c->isfloating)
 		XRaiseWindow(dpy, c->win);
+
+	/* Add the client to the client list. New clients are always added at the top of the list
+	 * making them the new master client. */
 	attach(c);
+	
+    /* Add the client to the stacking order list. New additions are always added at the top of
+	 * the list to indicate order in which clients had focus. */
 	attachstack(c);
+
 	XChangeProperty(dpy, root, netatom[NetClientList], XA_WINDOW, 32, PropModeAppend,
 		(unsigned char *) &(c->win), 1);
 	XMoveResizeWindow(dpy, c->win, c->x + 2 * sw, c->y, c->w, c->h); /* some windows require this */
@@ -1787,12 +1826,21 @@ manage(Window w, XWindowAttributes *wa)
 		setclientstate(c, NormalState);
 	if (c->mon == selmon)
 		unfocus(selmon->sel, 0);
+
+
+	/* The new client is assumed to be the selected client on the client's monitor. */
 	c->mon->sel = c;
+
+	/* An arrange to resize and reposition clients in the event that this new client is shown. */
 	arrange(c->mon);
+
 	if (!HIDDEN(c))
 		XMapWindow(dpy, c->win);
 	if (term)
 		swallow(term, c);
+
+	/* Finally a focus to give input focus to the next client in line (will be the new client,
+	 * if shown, otherwise it will likely be the previously selected client). */
 	focus(NULL);
 }
 
@@ -2800,28 +2848,35 @@ tile(Monitor *m)
 }
 
 void
-recurse(TreeNode *node, int x, int y, int w, int h)
+tree_recurse(TreeNode *node, int x, int y, int w, int h)
 {
+    assert(node->client || (node->a && node->b));
+
     if (node->client) {
+        // TODO: adjust border width (bw)
         resize(node->client, x, y, w, h, 0, 0);
         return;
     }
 
-    // If they are both 
-    if (node->a && node->b) {
-        recurse(node->a, x, y, w / 2,  h / 2);
-        recurse(node->b, w/2, y, w, h);
-    }
+    // node->a && node->b
 
-    if (node->a) {
-        recurse(node->a, x, y, w, h);
+    if (node->stacked) {
+        // Stacked vertically: a on top, b on bottom
+        //  ┌─────────┐
+        //  │    a    │
+        //  ├─────────┤
+        //  │    b    │
+        //  └─────────┘
+        tree_recurse(node->a, x, y, w, h / 2); // Top half
+        tree_recurse(node->b, x, y + h / 2, w, h / 2); // Bottom half
+    } else {
+        // Side by side: a on left, b on right
+        //  ┌─────┬─────┐
+        //  │  a  │  b  │
+        //  └─────┴─────┘
+        tree_recurse(node->a, x, y, w / 2, h); // Left half
+        tree_recurse(node->b, x + w / 2, y, w / 2, h); // Right half
     }
-
-    if (node->b) {
-        recurse(node->a, x, y, w, h);
-    }
-
-    assert(node->a || node->b);
 }
 
 void
@@ -2836,7 +2891,8 @@ tree(Monitor *m)
 
     TreeNode *node = m->root;
 
-    recurse(node, m->mx, m->my, m->wx, m->wy);
+    // pass along the window boundaries
+    tree_recurse(node, m->mx, m->my, m->wx, m->wy);
 }
 
 void
@@ -2885,17 +2941,14 @@ treemove_recurse(TreeNode *node, const Arg *arg, int op)
     // Swap a and b
     int SWAP = (RIGHT && A) || (DOWN && A) || (UP & !A) || (LEFT && !A);
 
-    if (NOP) {
+    if (NOP)
         treemove_recurse(node->parent, arg, 0);
-    }
 
-    if (FLIP) {
+    if (FLIP)
         treemove_recurse(node->parent, arg, 1);
-    }
 
-    if (SWAP) {
+    if (SWAP)
         treemove_recurse(node->parent, arg, 2);
-    }
 }
 
 void
@@ -2911,6 +2964,130 @@ treenode_move(const Arg *arg)
     TreeNode *node = sel->node;
 
     treemove_recurse(node, arg, 0);
+
+    arrange(selmon);
+}
+
+void
+treenode_add(Client* c)
+{
+    // client c, is the newly created client.
+    // client shall go under the currently focused
+    // client
+    
+    TreeNode *node_a, *node_b;
+
+    Client *focused_c = selmon->sel;
+
+    // TODO: decide between whether a new window becomes (a) or (b) 
+    // this becomes the parent node
+    TreeNode* focused_node = focused_c->node;
+
+    assert(focused_node);
+    assert(focused_node->client == focused_c);
+    assert(!focused_node->a && !focused_node->b);
+
+    // allocate space for a treenode
+    
+    // node a shall be the old focused node
+    node_a = ecalloc(1, sizeof(TreeNode));
+
+    node_a->client = focused_c;
+    node_a->is_A = 1;
+ 
+    c->node = node_b;
+
+    // node b shall become the new node we are adding
+    node_b = ecalloc(1, sizeof(TreeNode));
+
+    node_b->client = c;
+    node_b->is_A = 0;
+    
+    focused_c->node = node_b;
+
+    // assign node_a and node_b to be subsets 
+    // of our currently focused node
+    focused_node->a = node_a;
+    focused_node->b = node_b;
+    focused_node->client = nullptr;
+
+    // TODO: decide whether to stack the children or not
+    focused_node->stacked = 0;
+
+}
+
+void
+treenode_remove(Client* c) 
+{   
+
+    if (!c)
+        return;
+
+    // When we remove a node, the sibling becomes the parent.
+    
+    TreeNode *node = c->node;
+
+    TreeNode *sibling, *parent, *grandparent;
+
+    Monitor *m = c->mon;
+
+    if (!node) 
+        return;
+
+    // make sure node doesn't have any children
+    assert(!node->a && !node->b);
+
+    // make sure it points to the same client
+    assert(node->client == c);
+
+    if (m->root == node) {
+        // node is the root node within the monitor
+        
+        m->root = nullptr;
+        c->node = nullptr;
+
+        free(node);
+
+        return;
+    }
+
+    parent = node->parent;
+
+    // if parent did not exist here then node would be a root
+    // node and thus there's an issue here
+    assert(parent)
+
+    assert(parent->client == nullptr);
+
+    if (node->is_A) {
+        sibling = parent->b;
+    } else {
+        sibling = parent->a;
+    }
+
+    grandparent = parent->parent;
+     
+    // sibling becomes the parent node
+    
+    if (grandparent) {
+        // grandparent exists then parent is not the root node
+
+        if (parent->is_A) {
+            grandparent->a = sibling;
+        } else {
+            grandparent->b = sibling
+        }
+    } else {
+        // parent is the root node, thus the new root node becomes sibling
+        m->root = sibling;
+    }
+
+    free(parent);
+    free(node);
+
+    // free client, since the client is about to be destroyed.
+    client->node = nullptr;
+
 }
 
 void
@@ -3031,8 +3208,17 @@ unmanage(Client *c, int destroyed)
 		return;
 	}
 
+	/* Remove the given client from both the client list and the stack order list. */
 	detach(c);
 	detachstack(c);
+
+    // Remove the given client from the tree.
+    treenode_remove(c);
+
+	/* If the window has already been destroyed then we don't have to take any further action
+	 * with regards to the window itself. The function parameter destroyed will be true (1) if
+	 * unmanage is called from the destroynotify function.
+	 */
 	if (!destroyed) {
 		wc.border_width = c->oldbw;
 		XGrabServer(dpy); /* avoid race conditions */
