@@ -1518,6 +1518,8 @@ focusstack(int inc, int hid)
 	}
 }
 
+focusnode
+
 Atom
 getatomprop(Client *c, Atom prop)
 {
