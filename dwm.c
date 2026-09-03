@@ -62,6 +62,7 @@
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
+#define WORKSPACEMASK           ((1 << LENGTH(workspaces)) - 1)
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
 
 #define MWM_HINTS_FLAGS_FIELD       0
@@ -154,6 +155,9 @@ struct Client {
 	 * This would mean that the client is shown on tags 1, 5 and 7.
 	 */
 	unsigned int tags;
+
+    /// The workspace the client is attached too
+    unsigned int workspace;
 
 	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen, isterminal, noswallow;
 	pid_t pid;
@@ -285,6 +289,21 @@ struct Monitor {
 	/* This array holds the previously and currently viewed tags for the monitor, the index of
 	 * which is indicated by the seltags variable. */
 	unsigned int tagset[2];
+
+	/* This represents the workspaces the monitor owns.
+	 *
+	 * As an example consider the hexadecimal value of 0x51 (decimal 81) which has a binary
+	 * value of:
+	 *    001010001  - bitmask
+	 *    987654321  - workspaces
+	 *
+	 * This would mean that the monitor owns workspaces 1, 5 and 7.
+	 */
+    unsigned int workspaces;
+
+    /// The currently selected workspace and the one being displayed on the monitor.
+    /// Also it has the previously displayed workspace.
+    int selected_workspaces[2];
 
 	/* Internal flag indicating whether the bar is shown or not. */
 	int showbar;
