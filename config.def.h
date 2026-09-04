@@ -40,17 +40,19 @@ static const char *colors[][3] = {
 /* tagging */
 static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
+static const char *workspaces[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
+
 static const Rule rules[] = {
 	/* xprop(1):
 	 *	WM_CLASS(STRING) = instance, class
 	 *	WM_NAME(STRING) = title
 	 */
-	/* class     instance  title           tags mask  isfloating  isterminal  noswallow  monitor */
-	{ "Gimp",    NULL,     NULL,           0,         1,          0,           0,        -1 },
-	{ "Firefox", NULL,     NULL,           1 << 8,    0,          0,          -1,        -1 },
-	{ "kitty", NULL, NULL,           0,         0,          1,           0,        -1 },
-	{ "st-256color", NULL, NULL,           0,         0,          1,           0,        -1 },
-	{ NULL,      NULL,     "Event Tester", 0,         0,          0,           1,        -1 }, /* xev */
+	/* class         instance  title           tags mask  isfloating  isterminal  noswallow  monitor */
+	{ "Gimp",        NULL,     NULL,           0,         1,          0,           0,        -1 },
+	{ "Firefox",     NULL,     NULL,           1 << 8,    0,          0,          -1,        -1 },
+	{ "kitty",       NULL,     NULL,           0,         0,          1,           0,        -1 },
+	{ "st-256color", NULL,     NULL,           0,         0,          1,           0,        -1 },
+	{ NULL,          NULL,     "Event Tester", 0,         0,          0,           1,        -1 }, /* xev */
 };
 
 /* layout(s) */
@@ -71,10 +73,8 @@ static const Layout layouts[] = {
 /* key definitions */
 #define MODKEY Mod4Mask
 #define TAGKEYS(KEY,TAG) \
-	{ MODKEY,                       KEY,      view,           {.ui = 1 << TAG} }, \
-	{ MODKEY|ControlMask,           KEY,      toggleview,     {.ui = 1 << TAG} }, \
-	{ MODKEY|ShiftMask,             KEY,      tag,            {.ui = 1 << TAG} }, \
-	{ MODKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG} },
+	{ MODKEY,               KEY,      viewworkspace,    {.ui = TAG + 1} }, \
+	{ MODKEY|ShiftMask,     KEY,      movetoworkspace,  {.ui = TAG + 1} },
 
 /* helper for spawning shell commands in the pre dwm-5.0 fashion */
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
@@ -127,11 +127,11 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask,             XK_s,      showall,        {0} },
 	{ MODKEY|ControlMask,           XK_h,      hide,           {0} },
     
-    /// Audio Mute
+    // Audio Mute
     { 0,                            XF86XK_AudioMute,           spawn,          SHCMD("pactl set-sink-mute @DEFAULT_SINK@ toggle; pkill -RTMIN+1 dwmblocks") },
     // Audio Lower Volume
-   { 0,                            XF86XK_AudioLowerVolume,    spawn,          SHCMD("pactl set-sink-volume @DEFAULT_SINK@ -3%; pkill -RTMIN+1 dwmblocks") },
-   // Audio Raise Volume
+    { 0,                            XF86XK_AudioLowerVolume,    spawn,          SHCMD("pactl set-sink-volume @DEFAULT_SINK@ -3%; pkill -RTMIN+1 dwmblocks") },
+    // Audio Raise Volume
     { 0,                            XF86XK_AudioRaiseVolume,    spawn,          SHCMD("pactl set-sink-volume @DEFAULT_SINK@ +3%; pkill -RTMIN+1 dwmblocks") },
     // Brightness Up
     { 0,                            XF86XK_MonBrightnessUp,     spawn,          SHCMD("brightnessctl set +5%; pkill -RTMIN+2 dwmblocks") },
@@ -139,6 +139,7 @@ static const Key keys[] = {
     { 0,                            XF86XK_MonBrightnessDown,   spawn,          SHCMD("brightnessctl set 5%-; pkill -RTMIN+2 dwmblocks") },
     // Screenshot
     { 0,                            XK_Print,                   spawn,          {.v = flameshot} },
+
 	TAGKEYS(                        XK_1,                      0)
 	TAGKEYS(                        XK_2,                      1)
 	TAGKEYS(                        XK_3,                      2)

@@ -56,13 +56,14 @@
 #define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
                                * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
-#define ISVISIBLE(C)            ((C->tags & C->mon->tagset[C->mon->seltags]))
+#define ISVISIBLE(C)            ((C->workspace == C->mon->selected_workspaces[C->mon->selected_workspace]))
 #define HIDDEN(C)               (getstate((C)->win) == IconicState)
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 #define WORKSPACEMASK           ((1 << LENGTH(workspaces)) - 1)
+#define WORKSPACEBIT(W)         (1U << ((W) - 1))
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
 
 #define MWM_HINTS_FLAGS_FIELD       0
@@ -303,7 +304,9 @@ struct Monitor {
 
     /// The currently selected workspace and the one being displayed on the monitor.
     /// Also it has the previously displayed workspace.
-    int selected_workspaces[2];
+    unsigned int selected_workspaces[2];
+
+    int selected_workspace;
 
 	/* Internal flag indicating whether the bar is shown or not. */
 	int showbar;
@@ -400,6 +403,7 @@ static void maprequest(XEvent *e);
 static void monocle(Monitor *m);
 static void motionnotify(XEvent *e);
 static void movemouse(const Arg *arg);
+static void movetoworkspace(const Arg *arg);
 static Client *nexttiled(Client *c);
 static void pop(Client *c);
 static void propertynotify(XEvent *e);
@@ -416,8 +420,10 @@ static void run(void);
 static void scan(void);
 static int sendevent(Window w, Atom proto, int m, long d0, long d1, long d2, long d3, long d4);
 static void sendmon(Client *c, Monitor *m);
+static void sendtoworkspace(const Arg *arg);
 static void setclientstate(Client *c, long state);
 static void setclienttagprop(Client *c);
+static void setclientworkspaceprop(Client *c);
 static void setfocus(Client *c);
 static void setfullscreen(Client *c, int fullscreen);
 static void setlayout(const Arg *arg);
@@ -458,6 +464,7 @@ static void updatetitle(Client *c);
 static void updatewindowtype(Client *c);
 static void updatewmhints(Client *c);
 static void view(const Arg *arg);
+static void viewworkspace(const Arg *arg);
 static Client *wintoclient(Window w);
 static Monitor *wintomon(Window w);
 static Client *wintosystrayicon(Window w);
@@ -505,8 +512,13 @@ static Cur *cursor[CurLast];
 static Clr **scheme;
 static Display *dpy;
 static Drw *drw;
+
+/// First monitor and selected monitor
 static Monitor *mons, *selmon;
+
+/// Root window and supporting window
 static Window root, wmcheckwin;
+
 static xcb_connection_t *xcon;
 
 /* configuration, allows nested code to access above variables */
@@ -789,18 +801,20 @@ buttonpress(XEvent *e)
 	if (ev->window == selmon->barwin) {
 		i = x = 0;
         unsigned int occ = 0;
-        for(c = m->clients; c; c=c->next)
-	        occ |= c->tags == TAGMASK ? 0 : c->tags; 
+
+        for (c = m->clients; c; c = c->next)
+            if (c->workspace >= 1 && c->workspace <= LENGTH(workspaces))
+                occ |= WORKSPACEBIT(c->workspace);
 		
         do {
-            /* Do not reserve space for vacant tags */
-            if (!(occ & 1 << i || m->tagset[m->seltags] & 1 << i))
+            /* Do not reserve space for vacant workspaces. */
+            if (!(occ & (1U << i) || i + 1 == m->selected_workspaces[m->selected_workspace]))
                 continue;
-			x += TEXTW(tags[i]);
-        } while (ev->x >= x && ++i < LENGTH(tags));
-		if (i < LENGTH(tags)) {
+			x += TEXTW(workspaces[i]);
+        } while (ev->x >= x && ++i < LENGTH(workspaces));
+		if (i < LENGTH(workspaces)) {
 			click = ClkTagBar;
-			arg.ui = 1 << i;
+			arg.ui = i + 1;
 		} else if (ev->x < x + TEXTW(selmon->ltsymbol))
 			click = ClkLtSymbol;
 		else if (ev->x > selmon->ww - (int)TEXTW(stext) + lrpad - 2 - getsystraywidth()) {
@@ -1066,17 +1080,26 @@ configurerequest(XEvent *e)
 	XSync(dpy, False);
 }
 
+/* This creates and returns a new monitor structure. */
 Monitor *
 createmon(void)
 {
 	Monitor *m;
 
 	m = ecalloc(1, sizeof(Monitor));
-	m->tagset[0] = m->tagset[1] = 1;
+
+	/* This sets the current and previous tagset to 1, as in the first tag is selected by
+	 * default. */
+	m->selected_workspaces[0] = m->selected_workspaces[1] = 1;
+
+	/* We set the default master / stack factor, number of clients in the master area, whether
+	 * to show the bar by default and its location based on the corresponding variables set in
+	 * the configuration file. */
 	m->mfact = mfact;
 	m->nmaster = nmaster;
 	m->showbar = showbar;
 	m->topbar = topbar;
+
 	m->lt[0] = &layouts[0];
 	m->lt[1] = &layouts[1 % LENGTH(layouts)];
 	strncpy(m->ltsymbol, layouts[0].symbol, sizeof m->ltsymbol);
@@ -1247,6 +1270,12 @@ drawstatusbar(Monitor *m, int bh, char* stext) {
 	return ret;
 }
 
+/* This function handles the drawing of the bar.
+ *
+ * The logic that is applied here with regards to what is drawn must be accurately reflected in the
+ * buttonpress function which works out what the user clicked on by going through the same logical
+ * steps without drawing anything.
+ */
 void
 drawbar(Monitor *m)
 {
@@ -1254,33 +1283,54 @@ drawbar(Monitor *m)
 	unsigned int i, occ = 0, urg = 0;
 	Client *c;
 
-	if (!m->showbar)
+	// If the bar is not shown then don't spend any effort drawing the bar.
+    if (!m->showbar)
 		return;
 
+	// If the system tray is enabled, belongs on this monitor, and is positioned
+    // on the right, get its width so drawing does not overlap it.
 	if(showsystray && m == systraytomon(m) && !systrayonleft)
 		stw = getsystraywidth();
 
-	/* draw status first so it can be overdrawn by tags later */
+	/* Draw status first so it can be overdrawn by tags later. The main reason for this is that
+	 * we want as much of the status shown as possible and it is just easier to draw the status
+	 * first and let other things like tags overwrite it if necessary compared to having to
+	 * calculate how much we can fit at a later time. */
 	if (m == selmon) { /* status is only drawn on selected monitor */
 		tw = m->ww - drawstatusbar(m, bh, stext);
 	}
 
 	resizebarwin(m);
+
+	/* This loops through all clients on the monitor and derives two bitmask variables
+	 * indicating what tags are occupied by clients and what tags are occupied by urgent
+	 * clients. It also counts how many clients are visible. */
 	for (c = m->clients; c; c = c->next) {
 		if (ISVISIBLE(c))
 			n++;
-		occ |= c->tags == TAGMASK ? 0 : c->tags;
-        if (c->isurgent)
-			urg |= c->tags;
+
+        if (c->workspace >= 1 && c->workspace <= LENGTH(workspaces))
+            /* The or-equals operator means the union of occ and c->tags, it is short for
+             *    occ = occ | c->tags;
+             */
+            occ |= WORKSPACEBIT(c->workspace);
+
+		/* We do the same for urgent clients. */
+        if (c->isurgent && c->workspace >= 1 && c->workspace <= LENGTH(workspaces))
+			urg |= WORKSPACEBIT(c->workspace);
 	}
+
 	x = 0;
-	for (i = 0; i < LENGTH(tags); i++) {
+	for (i = 0; i < LENGTH(workspaces); i++) {
         /* Do not draw vacant tags */
-        if(!(occ & 1 << i || m->tagset[m->seltags] & 1 << i))
+        if (!(occ & (1U << i) || i + 1 == m->selected_workspaces[m->selected_workspace]))
             continue;
-		w = TEXTW(tags[i]);
-		drw_setscheme(drw, scheme[m->tagset[m->seltags] & 1 << i ? SchemeSel : SchemeNorm]);
-		drw_text(drw, x, 0, w, bh, lrpad / 2, tags[i], urg & 1 << i);
+
+		/* The user can define their own tag symbols (or text) so the width of each tag can
+		 * differ from tag to tag. */
+		w = TEXTW(workspaces[i]);
+		drw_setscheme(drw, scheme[i + 1 == m->selected_workspaces[m->selected_workspace] ? SchemeSel : SchemeNorm]);
+		drw_text(drw, x, 0, w, bh, lrpad / 2, workspaces[i], urg & (1U << i));
 		x += w;
 	}
 	w = TEXTW(m->ltsymbol);
@@ -1706,23 +1756,55 @@ manage(Window w, XWindowAttributes *wa)
 	unsigned long n, extra;
 	unsigned long *data = NULL;
 
+	/* Allocate memory for the new client. */
 	c = ecalloc(1, sizeof(Client));
+	
+    /* Keep a reference to the window this client represents. This is used in many places. */
 	c->win = w;
+
 	c->pid = winpid(w);
-	/* geometry */
+
+	/* Here we initially use the original position and size of the window as defined by the
+	 * window attributes. Setting the old variables here are mostly just to have them
+	 * initialised. */
 	c->x = c->oldx = wa->x;
 	c->y = c->oldy = wa->y;
 	c->w = c->oldw = wa->width;
 	c->h = c->oldh = wa->height;
+
+    /* Store the previous border width. Intended to be used to restore the border width when
+	 * unmanaging a client that is not destroyed. */
 	c->oldbw = wa->border_width;
 
+	/* Reads and stores the window title in the client's name variable. */
 	updatetitle(c);
+
+	/* A transient window is intended to be a short lived window that belong to a parent window.
+	 * This could be a dialog box, a popup, a toolbox or a menu to give a few examples.
+	 *
+	 * In dwm transient windows are handled differently to other windows in that:
+	 *    - they inherit the monitor and tags from their parent window and
+	 *    - client rules do not apply to transient windows and
+	 *    - transient windows are always floating
+	 *
+	 * Check if the window is a transient for a parent window, and if so check if this parent
+	 * window (t) is managed by the window manager.
+	 */
 	if (XGetTransientForHint(dpy, w, &trans) && (t = wintoclient(trans))) {
+        /* A transient window inherits the monitor and tags from its parent window. */
 		c->mon = t->mon;
 		c->tags = t->tags;
 	} else {
+		/* Normal windows are opened on the selected monitor by default, but can be moved to
+		 * designated monitors via client rules. */
 		c->mon = selmon;
+
+		/* Search for matching client rules and apply those to the given client. */
 		applyrules(c);
+
+		/* Assign the client to the currently viewed workspace on its monitor. */
+		c->workspace = c->mon->selected_workspaces[c->mon->selected_workspace];
+
 		term = termforwin(c);
 	}
 
@@ -2269,10 +2351,23 @@ setclientstate(Client *c, long state)
 		PropModeReplace, (unsigned char *)data, 2);
 }
 
+// It stores the client's tag information as an X window property on the client's window itself.
+// This is for the sake of persistence
 void
 setclienttagprop(Client *c)
 {
 	unsigned long data[] = { c->tags, c->mon->num };
+
+	XChangeProperty(dpy, c->win, netatom[NetClientInfo], XA_CARDINAL, 32,
+		PropModeReplace, (unsigned char *)data, LENGTH(data));
+}
+
+// It stores the client's workspace information as an X window property on the client's window itself.
+// This is for the sake of persistence
+void
+setclientworkspaceprop(Client *c)
+{
+	unsigned long data[] = { c->workspace, c->mon->num };
 
 	XChangeProperty(dpy, c->win, netatom[NetClientInfo], XA_CARDINAL, 32,
 		PropModeReplace, (unsigned char *)data, LENGTH(data));
@@ -2519,20 +2614,78 @@ showwin(Client *c)
 	arrange(c->mon);
 }
 
+/* This is a recursive function that moves client windows into or out of view depending on whether
+ * the tag(s) they are shown on are viewed or not.
+ *
+ * Client windows are shown top down when they are moved into view, and are hidden bottom up when
+ * moved out of view.
+ *
+ * As an example let's say that we have a floating layout with a series of windows that are placed
+ * on top of each other. The order of the clients is determined by the monitor stack where the
+ * window that most recently had focus is at the top of the stack and the least recently used
+ * window will be at the bottom of the stack.
+ *
+ * When moving client windows into view we start to move clients from the top of the stack, then we
+ * call showhide again to move the next client in the stack.
+ *
+ * If this was the other way around then the window at the far bottom of the stack would be moved
+ * into view first, then the next after that, and so on until the last window that is shown on top
+ * of all the other windows is moved into view. This would give a very noticeable effect as the X
+ * server would have to draw each window as they are moved in and overlap.
+ *
+ * When windows are shown top down then the window at the top of the stack is moved into view first
+ * and the X server will not have to draw anything for any of the subsequent windows whose view is
+ * obscured by the topmost window.
+ *
+ * The same logic applies when moving windows out of view. If we were to hide windows top down then
+ * the topmost window would be moved out of view first, revealing the windows beneath it. The next
+ * window would reveal more windows and so on and the X server would have to draw each window being
+ * revealed. By hiding windows bottom up we avoid that as the topmost window obscures the view of
+ * the windows below it until that too is moved away.
+ *
+ * Most window managers use the IconicState and NormalState window states for the purpose of moving
+ * windows out of and into view. The iconic state means that the window is not shown on the screen
+ * but is shown as an icon in the bar (i.e. it is minimised).
+ *
+ * In dwm the windows are merely moved out of view to a negative X position (which is determined by
+ * the width of the client). In practice this means that the window is placed on the immediate left
+ * of the leftmost monitor, just out of view.
+ *
+ * @called_from arrange to bring clients into and out of view depending on what tags are shown
+ * @called_from showhide in a recursive manner for each client in the client stack
+ * @calls XMoveWindow https://tronche.com/gui/x/xlib/window/XMoveWindow.html
+ * @calls resize for all visible floating clients
+ * @calls showhide in a recursive manner for each client in the client stack
+ *
+ * Internal call stack:
+ *    ~ -> arrange -> showhide -> showhide
+ *                       ^___________/
+ */
 void
 showhide(Client *c)
 {
 	if (!c)
 		return;
+
 	if (ISVISIBLE(c)) {
 		/* show clients top down */
 		XMoveWindow(dpy, c->win, c->x, c->y);
+
+		/* This applies a resize call if the window is floating or the floating layout is
+		 * used, as long as the window is not also in fullscreen.
+		 *
+		 * The only practical need for this resize call would be in the event that the size
+		 * hints of a window has been updated while it has been out of view.
+		 */
 		if ((!c->mon->lt[c->mon->sellt]->arrange || c->isfloating) && !c->isfullscreen)
 			resize(c, c->x, c->y, c->w, c->h, c->bw, 0);
+
 		showhide(c->snext);
 	} else {
 		/* hide clients bottom up */
 		showhide(c->snext);
+
+        /* Move the window out of sight. */
 		XMoveWindow(dpy, c->win, WIDTH(c) * -2, c->y);
 	}
 }
@@ -2573,17 +2726,81 @@ spawn(const Arg *arg)
 	}
 }
 
+/* The tag function moves the selected client to a given tag.
+ *
+ * This is referenced in the TAGKEYS macro which sets up keybindings for each individual tag.
+ *
+ * @called_from keypress in relation to keybindings
+ * @called_from buttonpress in relation to button bindings
+ * @calls focus to give input focus to the next client in the stack
+ * @calls arrange as the client may have been been moved out of view
+ * @see TAGMASK macro
+ *
+ * Internal call stack:
+ *    run -> keypress -> tag
+ *    run -> buttonpress -> tag
+ */
 void
 tag(const Arg *arg)
 {
+	/* Don't proceed if there are no selected clients or the given argument is not for any
+	 * valid tag. */
 	if (selmon->sel && arg->ui & TAGMASK) {
+		/* This sets the new tagmask for the selected client. */
 		selmon->sel->tags = arg->ui & TAGMASK;
+
 		setclienttagprop(selmon->sel);
+
+		/* Give input focus to the next client in the stack as the client may have been
+		 * moved to a tag that is not viewed. */
 		focus(NULL);
+
+		/* A full arrange to resize and reposition the remaining clients as well as to
+		 * update the bar. */
 		arrange(selmon);
 	}
 }
 
+// Send the client to a different workspace
+void
+sendtoworkspace(const Arg *arg)
+{
+    // Only proceed if the current monitor has a focused client
+    // and the workspace arg is a valid workspace
+    if (selmon->sel && arg->ui >= 1 && arg->ui <= LENGTH(workspaces)) {
+        // Change the focused client to a new workspace (assuming said workspace exists)
+        selmon->sel->workspace = arg->ui;
+
+        setclientworkspaceprop(selmon->sel);
+
+		/* Give input focus to the next client in the stack as the client may have been
+		 * moved to a tag that is not viewed. */
+        focus(NULL);
+
+        arrange(selmon);
+    }
+}
+
+// Send the client to a different workspace and move there
+void
+movetoworkspace(const Arg *arg)
+{
+    if (!selmon->sel)
+        return;
+
+    sendtoworkspace(arg);
+    viewworkspace(arg);
+}
+
+/* User function to move a the selected client to a monitor in a given direction.
+ *
+ * @called_from keypress in relation to keybindings
+ * @calls dirtomon to work out which monitor the direction refers to
+ * @calls sendmon to send the client to the monitor returned by dirtomon
+ *
+ * Internal call stack:
+ *    run -> keypress -> tagmon
+ */
 void
 tagmon(const Arg *arg)
 {
@@ -2683,6 +2900,7 @@ togglefloating(const Arg *arg)
 	arrange(selmon);
 }
 
+/// Add/remove a tag from a given client
 void
 toggletag(const Arg *arg)
 {
@@ -2699,6 +2917,7 @@ toggletag(const Arg *arg)
 	}
 }
 
+/// Add remove tag from view
 void
 toggleview(const Arg *arg)
 {
@@ -3196,16 +3415,62 @@ updatewmhints(Client *c)
 	}
 }
 
+/// View a specific workspace
+void
+viewworkspace(const Arg *arg)
+{
+	/* If the given workspace is the same as what is currently shown then do nothing. This makes
+	 * it so that if you are on workspace 7 and you hit MOD+7 then nothing happens. */
+	if (arg->ui == selmon->selected_workspaces[selmon->selected_workspace])
+		return;  // Already on this workspace
+
+	/* This toggles between the previous and current tagset. */
+	selmon->selected_workspace ^= 1; /* toggle sel tagset */
+
+	/* This sets the new tagset, unless the given unsigned int argument is 0. This has
+	 * specifically to do with the MOD+Tab keybinding that passes 0 as the bitmask to toggle
+	 * between the current and previous tagset.
+	 *
+	 *    { MODKEY,                       XK_Tab,    view,           {0} },
+	 */
+	if (arg->ui)
+		selmon->selected_workspaces[selmon->selected_workspace] = arg->ui;
+
+	/* Focus on the first visible client in the stack as the view has changed */
+	focus(NULL);
+
+	/* Finally a full arrange call to hide clients that are not shown and to bring into view
+	 * the clients that are, to tile them and to update the bar. */
+    arrange(selmon);
+}
+
+/// View a specific tag
 void
 view(const Arg *arg)
 {
+	/* If the given bitmask is the same as what is currently shown then do nothing. This makes
+	 * it so that if you are on tag 7 and you hit MOD+7 then nothing happens. */
 	if ((arg->ui & TAGMASK) == selmon->tagset[selmon->seltags])
 		return;
+
+	/* This toggles between the previous and current tagset. */
 	selmon->seltags ^= 1; /* toggle sel tagset */
+
+	/* This sets the new tagset, unless the given unsigned int argument is 0. This has
+	 * specifically to do with the MOD+Tab keybinding that passes 0 as the bitmask to toggle
+	 * between the current and previous tagset.
+	 *
+	 *    { MODKEY,                       XK_Tab,    view,           {0} },
+	 */
 	if (arg->ui & TAGMASK)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
+
+	/* Focus on the first visible client in the stack as the view has changed */
 	focus(NULL);
-	arrange(selmon);
+
+	/* Finally a full arrange call to hide clients that are not shown and to bring into view
+	 * the clients that are, to tile them and to update the bar. */
+    arrange(selmon);
 }
 
 pid_t
