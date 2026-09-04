@@ -38,8 +38,6 @@ static const char *colors[][3] = {
 };
 
 /* tagging */
-static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
-
 static const char *workspaces[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
 static const Rule rules[] = {
@@ -47,16 +45,16 @@ static const Rule rules[] = {
 	 *	WM_CLASS(STRING) = instance, class
 	 *	WM_NAME(STRING) = title
 	 */
-	/* class         instance  title           tags mask  isfloating  isterminal  noswallow  monitor */
+	/* class         instance  title           workspace  isfloating  isterminal  noswallow  monitor */
 	{ "Gimp",        NULL,     NULL,           0,         1,          0,           0,        -1 },
-	{ "Firefox",     NULL,     NULL,           1 << 8,    0,          0,          -1,        -1 },
+	{ "Firefox",     NULL,     NULL,           0,         0,          0,          -1,        -1 },
 	{ "kitty",       NULL,     NULL,           0,         0,          1,           0,        -1 },
 	{ "st-256color", NULL,     NULL,           0,         0,          1,           0,        -1 },
 	{ NULL,          NULL,     "Event Tester", 0,         0,          0,           1,        -1 }, /* xev */
 };
 
 /* layout(s) */
-static const float mfact     = 0.55; /* factor of master area size [0.05..0.95] */
+static const float mfact     = 0.50; /* factor of master area size [0.05..0.95] */
 static const int nmaster     = 1;    /* number of clients in master area */
 static const int resizehints = 0;    /* 1 means respect size hints in tiled resizals */
 static const int decorhints  = 1;    /* 1 means respect client decoration hints */
@@ -118,7 +116,8 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[2]} },
 	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
-	{ MODKEY|ShiftMask,             XK_0,      tag,            {.ui = ~0 } },
+    // TODO: Use workspace instead
+	// { MODKEY|ShiftMask,             XK_0,      tag,            {.ui = ~0 } },
 	{ MODKEY,                       XK_comma,  focusmon,       {.i = -1 } },
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
@@ -166,7 +165,8 @@ static const Button buttons[] = {
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
 	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
 	{ ClkTagBar,            0,              Button1,        view,           {0} },
-	{ ClkTagBar,            0,              Button3,        toggleview,     {0} },
-	{ ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
-	{ ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
+    // TODO: Use workspace instead
+    // { ClkTagBar,            0,              Button3,        toggleview,     {0} },
+	// { ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
+	// { ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
 };

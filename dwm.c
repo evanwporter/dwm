@@ -64,6 +64,10 @@
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 #define WORKSPACEMASK           ((1 << LENGTH(workspaces)) - 1)
 #define WORKSPACEBIT(W)         (1U << ((W) - 1))
+
+/// Check workspace bounds
+///    1 <= W <= LENGTH(workspaces)
+#define CHECK_WS_BOUNDS(W)      (1 <= (W) && (W) <= LENGTH(workspaces))
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
 
 #define MWM_HINTS_FLAGS_FIELD       0
@@ -341,7 +345,7 @@ typedef struct {
 	const char *class;
 	const char *instance;
 	const char *title;
-	unsigned int tags;
+	unsigned int workspace;
 	int isfloating;
 	int isterminal;
 	int noswallow;
@@ -422,7 +426,6 @@ static int sendevent(Window w, Atom proto, int m, long d0, long d1, long d2, lon
 static void sendmon(Client *c, Monitor *m);
 static void sendtoworkspace(const Arg *arg);
 static void setclientstate(Client *c, long state);
-static void setclienttagprop(Client *c);
 static void setclientworkspaceprop(Client *c);
 static void setfocus(Client *c);
 static void setfullscreen(Client *c, int fullscreen);
@@ -438,13 +441,10 @@ static void sighup(int unused);
 static void sigterm(int unused);
 static void spawn(const Arg *arg);
 static Monitor *systraytomon(Monitor *m);
-static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
 static void togglebar(const Arg *arg);
 static void togglefloating(const Arg *arg);
-static void toggletag(const Arg *arg);
-static void toggleview(const Arg *arg);
 static void togglewin(const Arg *arg);
 static void unfocus(Client *c, int setfocus);
 static void unmanage(Client *c, int destroyed);
@@ -524,10 +524,66 @@ static xcb_connection_t *xcon;
 /* configuration, allows nested code to access above variables */
 #include "config.h"
 
-/* compile-time check if all tags fit into an unsigned int bit array. */
-struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
-
 /* function implementations */
+
+/* This function applies client rules for a client window.
+ *
+ * Example rules from the default configuration:
+ *
+ *    static const Rule rules[] = {
+ *       // class      instance    title       tags mask     isfloating   monitor
+ *       { "Gimp",     NULL,       NULL,       0,            1,           -1 },
+ *       { "Firefox",  NULL,       NULL,       1 << 8,       0,           -1 },
+ *    };
+ *
+ * The first three fields are rule matching filters while the last three are rule options. What
+ * this means is that a client window must match all of the class, instance and title filters in
+ * order to get the tags mask, floating state and monitor options applied.
+ *
+ * If a rule filter is NULL then it does not apply (e.g. like instance and title filters above).
+ *
+ * Rule matching uses the strstr function to compare the rule filter to the corresponding class,
+ * instance and title values for the window. The strstr function is case sensitive and checks if
+ * a substring exists in another string.
+ *
+ * As an example if a rule has an instance filter of "st" then a client that has an instance name
+ * of "Manifesto Pro" will match that rule because the instance name contains "st". Adding more
+ * than one filter (e.g. class and instance) may help in these kind of situations.
+ *
+ * The fields, as well as the order of the fields, are determined by the Rule struct (given that
+ * the type of the rules array is Rule).
+ *
+ *    typedef struct {
+ *       const char *class;
+ *       const char *instance;
+ *       const char *title;
+ *       unsigned int tags;
+ *       int isfloating;
+ *       int monitor;
+ *    } Rule;
+ *
+ * It is worth noting that when some application windows are initially mapped they may have
+ * different title, class and instance hints compared to when you run xprop on them. It may be
+ * that these hints are changed by the application after dwm has checked the rules. An example
+ * of this are LibreOffice programs that come through with class and instance hints of "soffice"
+ * due to having a common launcher application named as such.
+ *
+ * One common misunderstanding when it comes to rules is that the tags mask is a binary mask
+ * rather than just a number like 8 to place a client on tag 8. The reason for this is simply due
+ * to convenience as all tags handling are binary masks, but also because a user may want to have
+ * a rule that places a given client on both tag 5 and tag 7.
+ *
+ * Also worth noting that in (ANSI) C99 you can use designated initialisers to initialise a
+ * structure. What this means is that you can initialise your rules like this:
+ *
+ *    static const Rule rules[] = {
+ *       { .class = "Gimp", .isfloating = 1, .monitor = -1 },
+ *       { .class = "Firefox", .tags = 1 << 8, .monitor = -1 },
+ *    };
+ *
+ * Any fields that are not initialised will default to 0. This can be useful when using many
+ * patches that add more rule filters or options.
+ */
 void
 applyrules(Client *c)
 {
@@ -535,35 +591,75 @@ applyrules(Client *c)
 	unsigned int i;
 	const Rule *r;
 	Monitor *m;
+
+	/* Placeholder to store the client's class hints in */
 	XClassHint ch = { NULL, NULL };
 
 	/* rule matching */
 	c->isfloating = 0;
+    c->workspace = 0;
 	c->tags = 0;
+
+	/* This reads the class hint for the client's window. As in this property of
+	 * the window:
+	 *
+	 *    $ xprop | grep WM_CLASS
+	 *    WM_CLASS(STRING) = "st", "St"
+	 *
+	 * The first value is the instance name and the second is the class. In the unlikely
+	 * scenario that a window does not have this property set then the class and instance will
+	 * default to "broken".
+	 */
 	XGetClassHint(dpy, c->win, &ch);
 	class    = ch.res_class ? ch.res_class : broken;
 	instance = ch.res_name  ? ch.res_name  : broken;
 
+	/* This loops through all Rule entries in the rules array. */
 	for (i = 0; i < LENGTH(rules); i++) {
+		/* The current rule (r) */
 		r = &rules[i];
+
+		/* Checking matching filters for class, instance and title. */
 		if ((!r->title || strstr(c->name, r->title))
 		&& (!r->class || strstr(class, r->class))
 		&& (!r->instance || strstr(instance, r->instance)))
 		{
+			/* This applies the rule options:
+			 *    - what monitor the client is to be shown on
+			 *    - tags mask
+			 *    - whether the client is floating or not
+			 */
 			c->isterminal = r->isterminal;
 			c->noswallow = r->noswallow;
 			c->isfloating = r->isfloating;
-			c->tags |= r->tags;
+
+			/* Note that this adds rather than sets tags. */
+            c->workspace |= r->workspace;
+
+			/* This loops through all monitors trying to find one that matches the monitor
+			 * rule value. If the rule value is -1 then we simply exhaust the list and m
+			 * will be NULL and thus not set. */
 			for (m = mons; m && m->num != r->monitor; m = m->next);
 			if (m)
 				c->mon = m;
+
+			/* Note the omission of a break; here. This means that despite having found a
+			 * matching client rule we still continue looking for others. In practice what
+			 * this means is that the last rule to apply is the one that will take
+			 * precedence, while the client's tags will be a union of the tags mask for
+			 * all matching rules. Situations where this applies is fairly rare. */
 		}
 	}
 	if (ch.res_class)
 		XFree(ch.res_class);
 	if (ch.res_name)
 		XFree(ch.res_name);
-	c->tags = c->tags & TAGMASK ? c->tags & TAGMASK : c->mon->tagset[c->mon->seltags];
+
+	/* This guard checks whether the client is to be shown on a valid tag. If it is not
+	 * then we show the client on whatever tag(s) the client's monitor has active. */
+	c->tags = CHECK_WS_BOUNDS(c->workspace) 
+        ? c->workspace 
+        : c->mon->selected_workspaces[c->mon->selected_workspace];
 }
 
 int
@@ -612,7 +708,7 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int *bw, int interact)
 			if (c->maxa < (float)*w / *h)
 				*w = *h * c->maxa + 0.5;
 			else if (c->mina < (float)*h / *w)
-				*h = *w * c->mina + 0.5;
+                *h = *w * c->mina + 0.5;
 		}
 		if (baseismin) { /* increment calculation requires this */
 			*w -= c->basew;
@@ -640,52 +736,6 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int *bw, int interact)
  * Passing a NULL value to arrange results in the above happening for all monitors. Passing a
  * specific monitor to the arrange function results in the above happening for that monitor and
  * in addition a restack is applied which will call drawbar.
- *
- * @called_from configurenotify if the monitor setup has changed
- * @called_from incnmaster after the number of master clients have been adjusted
- * @called_from manage upon managing a new client
- * @called_from pop in relation to a call to zoom to make a client window the new master
- * @called_from propertynotify in relation to a window becoming floating due to being transient
- * @called_from sendmon after moving a client window to another monitor
- * @called_from setfullscreen when a fullscreen window exits fullscreen
- * @called_from setlayout if there visible client windows to be arranged after changing layout
- * @called_from setmfact after the master / stack factor has been changed
- * @called_from tag when changing tags for the selected client
- * @called_from togglebar after revealing or hiding the bar
- * @called_from togglefloating after changing the floating state for the selected client
- * @called_from toggletag after changing a client's tags
- * @called_from toggleview after bringing tags into or out of view
- * @called_from unmanage after unmanaging a window
- * @called_from view after changing the tag(s) viewed
- * @calls showhide to move client windows into and out of view
- * @calls arrangemon to trigger re-arrangement of windows according to the selected layout
- * @calls restack to draw the bar and adjust which clients are shown above others
- *
- * Internal call stack:
- *    run -> configurenotify -> arrange
- *    run -> buttonpress -> tag -> arrange
- *    run -> buttonpress -> movemouse / resizemouse -> sendmon -> arrange
- *    run -> buttonpress -> movemouse / resizemouse -> togglefloating -> arrange
- *    run -> buttonpress -> togglefloating -> arrange
- *    run -> buttonpress -> toggletag -> arrange
- *    run -> buttonpress -> toggleview -> arrange
- *    run -> buttonpress -> view -> arrange
- *    run -> keypress -> incnmaster -> arrange
- *    run -> keypress -> setlayout -> arrange
- *    run -> keypress -> setmfact -> arrange
- *    run -> keypress -> zoom -> pop -> arrange
- *    run -> keypress -> tagmon -> sendmon -> arrange
- *    run -> keypress -> tag -> arrange
- *    run -> keypress -> togglebar -> arrange
- *    run -> keypress -> togglefloating -> arrange
- *    run -> keypress -> toggletag -> arrange
- *    run -> keypress -> toggleview -> arrange
- *    run -> keypress -> view -> arrange
- *    run -> maprequest -> manage -> arrange
- *    run -> propertynotify -> arrange
- *    run -> clientmessage / updatewindowtype -> setfullscreen -> arrange
- *    run -> destroynotify / unmapnotify -> unmanage -> arrange
- *    main -> cleanup -> view -> arrange
  */
 void
 arrange(Monitor *m)
@@ -1484,7 +1534,7 @@ focusstack(int inc, int hid)
 		return;
 
 	/* If the input value is positive then we move forward to find the next visible client. */
-	if (inc > 0) {
+    if (inc > 0) {
 		/* This searches through the client list for the next visible client. */
 		if (selmon->sel)
 			for (c = selmon->sel->next; c && (!ISVISIBLE(c) || (!hid && HIDDEN(c))); c = c->next);
@@ -1794,6 +1844,7 @@ manage(Window w, XWindowAttributes *wa)
         /* A transient window inherits the monitor and tags from its parent window. */
 		c->mon = t->mon;
 		c->tags = t->tags;
+        c->workspace = t->workspace;
 	} else {
 		/* Normal windows are opened on the selected monitor by default, but can be moved to
 		 * designated monitors via client rules. */
@@ -1826,8 +1877,10 @@ manage(Window w, XWindowAttributes *wa)
 	updatemotifhints(c);
 	if (XGetWindowProperty(dpy, c->win, netatom[NetClientInfo], 0L, 2L, False,
 		XA_CARDINAL, &actual, &format, &n, &extra, (unsigned char **)&data) == Success
-	&& actual == XA_CARDINAL && format == 32 && n == 2 && (data[0] & TAGMASK)) {
-		c->tags = data[0] & TAGMASK;
+	    && actual == XA_CARDINAL && format == 32 && n == 2 && (0 <= data[0] && 
+        data[0] <= LENGTH(workspaces))) {
+        // data is { workspace, monitor # }
+		c->workspace = data[0];
 		for (m = mons; m; m = m->next)
 			if (m->num == (int)data[1]) {
 				c->mon = m;
@@ -1836,7 +1889,7 @@ manage(Window w, XWindowAttributes *wa)
 	}
 	if (data)
 		XFree(data);
-	setclienttagprop(c);
+	setclientworkspaceprop(c);
 	XSelectInput(dpy, w, EnterWindowMask|FocusChangeMask|PropertyChangeMask|StructureNotifyMask);
 	grabbuttons(c, 0);
 	if (!c->isfloating)
@@ -2062,9 +2115,9 @@ propertynotify(XEvent *e)
 
     if ((ev->window == root) && (ev->atom == XA_WM_NAME))
 		updatestatus();
-	else if (ev->state == PropertyDelete)
+    else if (ev->state == PropertyDelete)
 		return; /* ignore */
-	else if ((c = wintoclient(ev->window))) {
+    else if ((c = wintoclient(ev->window))) {
 		switch(ev->atom) {
 		default: break;
 		case XA_WM_TRANSIENT_FOR:
@@ -2323,22 +2376,50 @@ scan(void)
 	}
 }
 
+/// This function handles moving a given client to a designated monitor.
 void
 sendmon(Client *c, Monitor *m)
 {
+	/* If the client is already on the target monitor then bail. */
 	if (c->mon == m)
 		return;
+
+    /* Unfocus the client and revert input focus back to the root window before we move the
+	 * client across to the new monitor. */
 	unfocus(c, 1);
+
+    /* We need to remove the given client from the previous monitor's client list as well as the
+	 * stacking order list before we can move the client. */
 	detach(c);
 	detachstack(c);
+
+	/* Set the client's monitor to be the target monitor. */
 	c->mon = m;
-	c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
+
+    // Set to the currently viewed workspace on the target monitor
+	c->workspace = m->selected_workspaces[m->selected_workspace];
+
+	/* Add the client to the target monitor's client list. */
 	attach(c);
+
+    /* Add the client to the target monitor's stacking order list. */
 	attachstack(c);
-	setclienttagprop(c);
+
+    setclientworkspaceprop(c);
+
+	/* If a fullscreen client is being moved to another monitor, then resize that client
+	 * to the size of the new monitor given that monitor dimensions may differ. Note that
+	 * resizeclient is used here directly - this is to avoid size hints being taken into
+	 * account when resizing the fullscreen window. */
 	if (c->isfullscreen)
 		resizeclient(c, m->mx, m->my, m->mw, m->mh, 0);
+
+	/* Apply a general focus to focus on the next client on the current monitor. Note that the
+	 * monitor focus does not follow the client being moved. */
 	focus(NULL);
+
+	/* Apply a full arrange across all monitors. Logically this is only needed for the target
+	 * monitor and the previous monitor, but that would require more lines of code. */
 	arrange(NULL);
 }
 
@@ -2349,17 +2430,6 @@ setclientstate(Client *c, long state)
 
 	XChangeProperty(dpy, c->win, wmatom[WMState], wmatom[WMState], 32,
 		PropModeReplace, (unsigned char *)data, 2);
-}
-
-// It stores the client's tag information as an X window property on the client's window itself.
-// This is for the sake of persistence
-void
-setclienttagprop(Client *c)
-{
-	unsigned long data[] = { c->tags, c->mon->num };
-
-	XChangeProperty(dpy, c->win, netatom[NetClientInfo], XA_CARDINAL, 32,
-		PropModeReplace, (unsigned char *)data, LENGTH(data));
 }
 
 // It stores the client's workspace information as an X window property on the client's window itself.
@@ -2726,41 +2796,6 @@ spawn(const Arg *arg)
 	}
 }
 
-/* The tag function moves the selected client to a given tag.
- *
- * This is referenced in the TAGKEYS macro which sets up keybindings for each individual tag.
- *
- * @called_from keypress in relation to keybindings
- * @called_from buttonpress in relation to button bindings
- * @calls focus to give input focus to the next client in the stack
- * @calls arrange as the client may have been been moved out of view
- * @see TAGMASK macro
- *
- * Internal call stack:
- *    run -> keypress -> tag
- *    run -> buttonpress -> tag
- */
-void
-tag(const Arg *arg)
-{
-	/* Don't proceed if there are no selected clients or the given argument is not for any
-	 * valid tag. */
-	if (selmon->sel && arg->ui & TAGMASK) {
-		/* This sets the new tagmask for the selected client. */
-		selmon->sel->tags = arg->ui & TAGMASK;
-
-		setclienttagprop(selmon->sel);
-
-		/* Give input focus to the next client in the stack as the client may have been
-		 * moved to a tag that is not viewed. */
-		focus(NULL);
-
-		/* A full arrange to resize and reposition the remaining clients as well as to
-		 * update the bar. */
-		arrange(selmon);
-	}
-}
-
 // Send the client to a different workspace
 void
 sendtoworkspace(const Arg *arg)
@@ -2898,36 +2933,6 @@ togglefloating(const Arg *arg)
 			selmon->sel->h - 2 * (borderpx - selmon->sel->bw),
 			borderpx, 0);
 	arrange(selmon);
-}
-
-/// Add/remove a tag from a given client
-void
-toggletag(const Arg *arg)
-{
-	unsigned int newtags;
-
-	if (!selmon->sel)
-		return;
-	newtags = selmon->sel->tags ^ (arg->ui & TAGMASK);
-	if (newtags) {
-		selmon->sel->tags = newtags;
-		setclienttagprop(selmon->sel);
-		focus(NULL);
-		arrange(selmon);
-	}
-}
-
-/// Add remove tag from view
-void
-toggleview(const Arg *arg)
-{
-	unsigned int newtagset = selmon->tagset[selmon->seltags] ^ (arg->ui & TAGMASK);
-
-	if (newtagset) {
-		selmon->tagset[selmon->seltags] = newtagset;
-		focus(NULL);
-		arrange(selmon);
-	}
 }
 
 void
@@ -3281,6 +3286,7 @@ updatesystrayicongeom(Client *i, int w, int h)
 	}
 }
 
+// TODO: Add comments about whatever this is doing
 void
 updatesystrayiconstate(Client *i, XPropertyEvent *ev)
 {
@@ -3291,14 +3297,14 @@ updatesystrayiconstate(Client *i, XPropertyEvent *ev)
 			!(flags = getatomprop(i, xatom[XembedInfo])))
 		return;
 
-	if (flags & XEMBED_MAPPED && !i->tags) {
-		i->tags = 1;
+	if (flags & XEMBED_MAPPED && !i->workspace) {
+		i->workspace = 1;
 		code = XEMBED_WINDOW_ACTIVATE;
 		XMapRaised(dpy, i->win);
 		setclientstate(i, NormalState);
 	}
 	else if (!(flags & XEMBED_MAPPED) && i->tags) {
-		i->tags = 0;
+		i->workspace = 0;
 		code = XEMBED_WINDOW_DEACTIVATE;
 		XUnmapWindow(dpy, i->win);
 		setclientstate(i, WithdrawnState);
@@ -3450,11 +3456,11 @@ view(const Arg *arg)
 {
 	/* If the given bitmask is the same as what is currently shown then do nothing. This makes
 	 * it so that if you are on tag 7 and you hit MOD+7 then nothing happens. */
-	if ((arg->ui & TAGMASK) == selmon->tagset[selmon->seltags])
-		return;
+    if (arg->ui == selmon->selected_workspaces[selmon->selected_workspace])
+        return;  // Already on this workspace
 
 	/* This toggles between the previous and current tagset. */
-	selmon->seltags ^= 1; /* toggle sel tagset */
+    selmon->seltags ^= 1; /* toggle sel tagset */
 
 	/* This sets the new tagset, unless the given unsigned int argument is 0. This has
 	 * specifically to do with the MOD+Tab keybinding that passes 0 as the bitmask to toggle
@@ -3462,8 +3468,8 @@ view(const Arg *arg)
 	 *
 	 *    { MODKEY,                       XK_Tab,    view,           {0} },
 	 */
-	if (arg->ui & TAGMASK)
-		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
+	if (CHECK_WS_BOUNDS(arg->ui))
+		selmon->tagset[selmon->seltags] = arg->ui;
 
 	/* Focus on the first visible client in the stack as the view has changed */
 	focus(NULL);
