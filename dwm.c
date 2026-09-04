@@ -303,7 +303,9 @@ struct Monitor {
 
     /// The currently selected workspace and the one being displayed on the monitor.
     /// Also it has the previously displayed workspace.
-    int selected_workspaces[2];
+    unsigned int selected_workspaces[2];
+
+    int selected_workspace;
 
 	/* Internal flag indicating whether the bar is shown or not. */
 	int showbar;
@@ -400,6 +402,7 @@ static void maprequest(XEvent *e);
 static void monocle(Monitor *m);
 static void motionnotify(XEvent *e);
 static void movemouse(const Arg *arg);
+static void movetoworkspace(const Arg *arg);
 static Client *nexttiled(Client *c);
 static void pop(Client *c);
 static void propertynotify(XEvent *e);
@@ -416,8 +419,10 @@ static void run(void);
 static void scan(void);
 static int sendevent(Window w, Atom proto, int m, long d0, long d1, long d2, long d3, long d4);
 static void sendmon(Client *c, Monitor *m);
+static void sendtoworkspace(const Arg *arg);
 static void setclientstate(Client *c, long state);
 static void setclienttagprop(Client *c);
+static void setclientworkspaceprop(Client *c);
 static void setfocus(Client *c);
 static void setfullscreen(Client *c, int fullscreen);
 static void setlayout(const Arg *arg);
@@ -458,6 +463,7 @@ static void updatetitle(Client *c);
 static void updatewindowtype(Client *c);
 static void updatewmhints(Client *c);
 static void view(const Arg *arg);
+static void viewworkspace(const Arg *arg);
 static Client *wintoclient(Window w);
 static Monitor *wintomon(Window w);
 static Client *wintosystrayicon(Window w);
@@ -505,8 +511,13 @@ static Cur *cursor[CurLast];
 static Clr **scheme;
 static Display *dpy;
 static Drw *drw;
+
+/// First monitor and selected monitor
 static Monitor *mons, *selmon;
+
+/// Root window and supporting window
 static Window root, wmcheckwin;
+
 static xcb_connection_t *xcon;
 
 /* configuration, allows nested code to access above variables */
@@ -2269,10 +2280,23 @@ setclientstate(Client *c, long state)
 		PropModeReplace, (unsigned char *)data, 2);
 }
 
+// It stores the client's tag information as an X window property on the client's window itself.
+// This is for the sake of persistence
 void
 setclienttagprop(Client *c)
 {
 	unsigned long data[] = { c->tags, c->mon->num };
+
+	XChangeProperty(dpy, c->win, netatom[NetClientInfo], XA_CARDINAL, 32,
+		PropModeReplace, (unsigned char *)data, LENGTH(data));
+}
+
+// It stores the client's workspace information as an X window property on the client's window itself.
+// This is for the sake of persistence
+void
+setclientworkspaceprop(Client *c)
+{
+	unsigned long data[] = { c->workspace, c->mon->num };
 
 	XChangeProperty(dpy, c->win, netatom[NetClientInfo], XA_CARDINAL, 32,
 		PropModeReplace, (unsigned char *)data, LENGTH(data));
@@ -2519,20 +2543,78 @@ showwin(Client *c)
 	arrange(c->mon);
 }
 
+/* This is a recursive function that moves client windows into or out of view depending on whether
+ * the tag(s) they are shown on are viewed or not.
+ *
+ * Client windows are shown top down when they are moved into view, and are hidden bottom up when
+ * moved out of view.
+ *
+ * As an example let's say that we have a floating layout with a series of windows that are placed
+ * on top of each other. The order of the clients is determined by the monitor stack where the
+ * window that most recently had focus is at the top of the stack and the least recently used
+ * window will be at the bottom of the stack.
+ *
+ * When moving client windows into view we start to move clients from the top of the stack, then we
+ * call showhide again to move the next client in the stack.
+ *
+ * If this was the other way around then the window at the far bottom of the stack would be moved
+ * into view first, then the next after that, and so on until the last window that is shown on top
+ * of all the other windows is moved into view. This would give a very noticeable effect as the X
+ * server would have to draw each window as they are moved in and overlap.
+ *
+ * When windows are shown top down then the window at the top of the stack is moved into view first
+ * and the X server will not have to draw anything for any of the subsequent windows whose view is
+ * obscured by the topmost window.
+ *
+ * The same logic applies when moving windows out of view. If we were to hide windows top down then
+ * the topmost window would be moved out of view first, revealing the windows beneath it. The next
+ * window would reveal more windows and so on and the X server would have to draw each window being
+ * revealed. By hiding windows bottom up we avoid that as the topmost window obscures the view of
+ * the windows below it until that too is moved away.
+ *
+ * Most window managers use the IconicState and NormalState window states for the purpose of moving
+ * windows out of and into view. The iconic state means that the window is not shown on the screen
+ * but is shown as an icon in the bar (i.e. it is minimised).
+ *
+ * In dwm the windows are merely moved out of view to a negative X position (which is determined by
+ * the width of the client). In practice this means that the window is placed on the immediate left
+ * of the leftmost monitor, just out of view.
+ *
+ * @called_from arrange to bring clients into and out of view depending on what tags are shown
+ * @called_from showhide in a recursive manner for each client in the client stack
+ * @calls XMoveWindow https://tronche.com/gui/x/xlib/window/XMoveWindow.html
+ * @calls resize for all visible floating clients
+ * @calls showhide in a recursive manner for each client in the client stack
+ *
+ * Internal call stack:
+ *    ~ -> arrange -> showhide -> showhide
+ *                       ^___________/
+ */
 void
 showhide(Client *c)
 {
 	if (!c)
 		return;
+
 	if (ISVISIBLE(c)) {
 		/* show clients top down */
 		XMoveWindow(dpy, c->win, c->x, c->y);
+
+		/* This applies a resize call if the window is floating or the floating layout is
+		 * used, as long as the window is not also in fullscreen.
+		 *
+		 * The only practical need for this resize call would be in the event that the size
+		 * hints of a window has been updated while it has been out of view.
+		 */
 		if ((!c->mon->lt[c->mon->sellt]->arrange || c->isfloating) && !c->isfullscreen)
 			resize(c, c->x, c->y, c->w, c->h, c->bw, 0);
+
 		showhide(c->snext);
 	} else {
 		/* hide clients bottom up */
 		showhide(c->snext);
+
+        /* Move the window out of sight. */
 		XMoveWindow(dpy, c->win, WIDTH(c) * -2, c->y);
 	}
 }
@@ -2573,17 +2655,81 @@ spawn(const Arg *arg)
 	}
 }
 
+/* The tag function moves the selected client to a given tag.
+ *
+ * This is referenced in the TAGKEYS macro which sets up keybindings for each individual tag.
+ *
+ * @called_from keypress in relation to keybindings
+ * @called_from buttonpress in relation to button bindings
+ * @calls focus to give input focus to the next client in the stack
+ * @calls arrange as the client may have been been moved out of view
+ * @see TAGMASK macro
+ *
+ * Internal call stack:
+ *    run -> keypress -> tag
+ *    run -> buttonpress -> tag
+ */
 void
 tag(const Arg *arg)
 {
+	/* Don't proceed if there are no selected clients or the given argument is not for any
+	 * valid tag. */
 	if (selmon->sel && arg->ui & TAGMASK) {
+		/* This sets the new tagmask for the selected client. */
 		selmon->sel->tags = arg->ui & TAGMASK;
+
 		setclienttagprop(selmon->sel);
+
+		/* Give input focus to the next client in the stack as the client may have been
+		 * moved to a tag that is not viewed. */
 		focus(NULL);
+
+		/* A full arrange to resize and reposition the remaining clients as well as to
+		 * update the bar. */
 		arrange(selmon);
 	}
 }
 
+// Send the client to a different workspace
+void
+sendtoworkspace(const Arg *arg)
+{
+    // Only proceed if the current monitor has a focused client
+    // and the workspace arg is a valid workspace
+    if (selmon->sel && arg->ui < LENGTH(workspaces)) {
+        // Change the focused client to a new workspace (assuming said workspace exists)
+        selmon->sel->workspace = arg->ui;
+
+        setclientworkspaceprop(selmon->sel);
+
+		/* Give input focus to the next client in the stack as the client may have been
+		 * moved to a tag that is not viewed. */
+        focus(NULL);
+
+        arrange(selmon);
+    }
+}
+
+// Send the client to a different workspace and move there
+void
+movetoworkspace(const Arg *arg)
+{
+    if (!selmon->sel)
+        return;
+
+    sendtoworkspace(arg);
+    viewworkspace(arg);
+}
+
+/* User function to move a the selected client to a monitor in a given direction.
+ *
+ * @called_from keypress in relation to keybindings
+ * @calls dirtomon to work out which monitor the direction refers to
+ * @calls sendmon to send the client to the monitor returned by dirtomon
+ *
+ * Internal call stack:
+ *    run -> keypress -> tagmon
+ */
 void
 tagmon(const Arg *arg)
 {
@@ -2683,6 +2829,7 @@ togglefloating(const Arg *arg)
 	arrange(selmon);
 }
 
+/// Add/remove a tag from a given client
 void
 toggletag(const Arg *arg)
 {
@@ -2699,6 +2846,7 @@ toggletag(const Arg *arg)
 	}
 }
 
+/// Add remove tag from view
 void
 toggleview(const Arg *arg)
 {
@@ -3196,16 +3344,62 @@ updatewmhints(Client *c)
 	}
 }
 
+/// View a specific workspace
+void
+viewworkspace(const Arg *arg)
+{
+	/* If the given workspace is the same as what is currently shown then do nothing. This makes
+	 * it so that if you are on workspace 7 and you hit MOD+7 then nothing happens. */
+    if (arg->ui == selmon->selected_workspaces[0])
+        return;  // Already on this workspace
+
+	/* This toggles between the previous and current tagset. */
+	selmon->selected_workspace ^= 1; /* toggle sel tagset */
+
+	/* This sets the new tagset, unless the given unsigned int argument is 0. This has
+	 * specifically to do with the MOD+Tab keybinding that passes 0 as the bitmask to toggle
+	 * between the current and previous tagset.
+	 *
+	 *    { MODKEY,                       XK_Tab,    view,           {0} },
+	 */
+	if (arg->ui)
+		selmon->selected_workspaces[selmon->selected_workspace] = arg->ui;
+
+	/* Focus on the first visible client in the stack as the view has changed */
+	focus(NULL);
+
+	/* Finally a full arrange call to hide clients that are not shown and to bring into view
+	 * the clients that are, to tile them and to update the bar. */
+    arrange(selmon);
+}
+
+/// View a specific tag
 void
 view(const Arg *arg)
 {
+	/* If the given bitmask is the same as what is currently shown then do nothing. This makes
+	 * it so that if you are on tag 7 and you hit MOD+7 then nothing happens. */
 	if ((arg->ui & TAGMASK) == selmon->tagset[selmon->seltags])
 		return;
+
+	/* This toggles between the previous and current tagset. */
 	selmon->seltags ^= 1; /* toggle sel tagset */
+
+	/* This sets the new tagset, unless the given unsigned int argument is 0. This has
+	 * specifically to do with the MOD+Tab keybinding that passes 0 as the bitmask to toggle
+	 * between the current and previous tagset.
+	 *
+	 *    { MODKEY,                       XK_Tab,    view,           {0} },
+	 */
 	if (arg->ui & TAGMASK)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
+
+	/* Focus on the first visible client in the stack as the view has changed */
 	focus(NULL);
-	arrange(selmon);
+
+	/* Finally a full arrange call to hide clients that are not shown and to bring into view
+	 * the clients that are, to tile them and to update the bar. */
+    arrange(selmon);
 }
 
 pid_t
