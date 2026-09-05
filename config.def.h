@@ -125,7 +125,8 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_s,      show,           {0} },
 	{ MODKEY|ShiftMask,             XK_s,      showall,        {0} },
 	{ MODKEY|ControlMask,           XK_h,      hide,           {0} },
-    
+	{ MODKEY|ControlMask,           XK_l,      spawn,          SHCMD("/run/wrappers/bin/slock") },
+
     // Audio Mute
     { 0,                            XF86XK_AudioMute,           spawn,          SHCMD("pactl set-sink-mute @DEFAULT_SINK@ toggle; pkill -RTMIN+1 dwmblocks") },
     // Audio Lower Volume
