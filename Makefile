@@ -9,7 +9,7 @@ OBJ = ${SRC:.c=.o}
 UTIL_SRC = util.c tree.c
 UTIL_OBJ = ${UTIL_SRC:.c=.o}
 
-TEST_SRC = test/move_node.c test/dwm_stubs.c
+TEST_SRC = test/move_node.c test/dwm_stubs.c test/navigate_tree.c
 TEST_OBJ = ${TEST_SRC:.c=.o}
 
 CRITERION_CFLAGS = $(shell pkg-config --cflags criterion)
