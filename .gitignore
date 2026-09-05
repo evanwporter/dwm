@@ -1,6 +1,6 @@
 .direnv/
 config.h
-drw.o
+*.o
 dwm
-dwm.o
-util.o
+tests
+compile_commands.json

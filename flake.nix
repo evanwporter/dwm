@@ -45,6 +45,7 @@
 							packages = with pkgs; [
 								bear
 								clang-tools
+								criterion
 								gnumake
 								jq
 								pkg-config

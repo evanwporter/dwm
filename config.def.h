@@ -1,4 +1,6 @@
 /* See LICENSE file for copyright and license details. */
+#include "dwm.h"
+#include <X11/X.h>
 
 /* appearance */
 static const unsigned int borderpx       = 3;   /* border pixel of windows */
@@ -66,6 +68,7 @@ static const Layout layouts[] = {
 	{ "[M]",      monocle },
 	{ "[]=",      tile },    /* first entry is default */
 	{ "><>",      NULL },    /* no layout function means floating behavior */
+    { "[T]",      tree }
 };
 
 /* key definitions */
@@ -100,20 +103,23 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_space,  spawn,          {.v = dmenucmd } },
 	{ MODKEY,                       XK_Return, spawn,          {.v = termcmd } },
 	{ MODKEY,                       XK_b,      togglebar,      {0} },
-	{ MODKEY,                       XK_j,      focusstackvis,  {.i = +1 } },
-	{ MODKEY,                       XK_k,      focusstackvis,  {.i = -1 } },
-	{ MODKEY|ShiftMask,             XK_j,      focusstackhid,  {.i = +1 } },
-	{ MODKEY|ShiftMask,             XK_k,      focusstackhid,  {.i = -1 } },
+	{ MODKEY,                       XK_h,      key_move, {.i = 0 } },
+	{ MODKEY,                       XK_j,      key_move, {.i = 1 } },
+	{ MODKEY,                       XK_k,      key_move, {.i = 2 } },
+	{ MODKEY,                       XK_l,      key_move, {.i = 3 } },
+	{ MODKEY|ShiftMask,             XK_h,      key_tree_move,  {.i = 0 } },
+	{ MODKEY|ShiftMask,             XK_j,      key_tree_move,  {.i = 1 } },
+	{ MODKEY|ShiftMask,             XK_k,      key_tree_move,  {.i = 2 } },
+	{ MODKEY|ShiftMask,             XK_l,      key_tree_move,  {.i = 3 } },
 	{ MODKEY,                       XK_i,      incnmaster,     {.i = +1 } },
 	{ MODKEY,                       XK_d,      incnmaster,     {.i = -1 } },
-	{ MODKEY,                       XK_h,      setmfact,       {.f = -0.05} },
-	{ MODKEY,                       XK_l,      setmfact,       {.f = +0.05} },
 	{ MODKEY,                       XK_Return, zoom,           {0} },
 	{ MODKEY,                       XK_Tab,    view,           {0} },
 	{ MODKEY,                       XK_q,      killclient,     {0} },
 	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[1]} },
 	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[2]} },
+    { MODKEY|ShiftMask,             XK_t,      setlayout,      {.v = &layouts[3]} },
 	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
     // TODO: Use workspace instead

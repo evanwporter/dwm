@@ -20,6 +20,7 @@
  *
  * To understand everything else, start reading main().
  */
+
 #include <errno.h>
 #include <locale.h>
 #include <signal.h>
@@ -49,446 +50,22 @@
 #endif /* __OpenBSD */
 
 #include "drw.h"
+#include "dwm.h"
 #include "util.h"
 
-/* macros */
-#define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
-#define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
-#define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
-                               * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
-#define ISVISIBLE(C)            ((C->workspace == C->mon->selected_workspaces[C->mon->selected_workspace]))
-#define HIDDEN(C)               (getstate((C)->win) == IconicState)
-#define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
-#define WIDTH(X)                ((X)->w + 2 * (X)->bw)
-#define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
-#define TAGMASK                 ((1 << LENGTH(tags)) - 1)
-#define WORKSPACEMASK           ((1 << LENGTH(workspaces)) - 1)
-#define WORKSPACEBIT(W)         (1U << ((W) - 1))
+/* configuration, allows nested code to access above variables */
+#include "config.h"
 
-/// Check workspace bounds
-///    1 <= W <= LENGTH(workspaces)
-#define CHECK_WS_BOUNDS(W)      (1 <= (W) && (W) <= LENGTH(workspaces))
-#define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
-
-#define MWM_HINTS_FLAGS_FIELD       0
-#define MWM_HINTS_DECORATIONS_FIELD 2
-#define MWM_HINTS_DECORATIONS       (1 << 1)
-#define MWM_DECOR_ALL               (1 << 0)
-#define MWM_DECOR_BORDER            (1 << 1)
-#define MWM_DECOR_TITLE             (1 << 3)
-
-#define SYSTEM_TRAY_REQUEST_DOCK    0
-/* XEMBED messages */
-#define XEMBED_EMBEDDED_NOTIFY      0
-#define XEMBED_WINDOW_ACTIVATE      1
-#define XEMBED_FOCUS_IN             4
-#define XEMBED_MODALITY_ON         10
-#define XEMBED_MAPPED              (1 << 0)
-#define XEMBED_WINDOW_ACTIVATE      1
-#define XEMBED_WINDOW_DEACTIVATE    2
-#define VERSION_MAJOR               0
-#define VERSION_MINOR               0
-#define XEMBED_EMBEDDED_VERSION (VERSION_MAJOR << 16) | VERSION_MINOR
-
-/* enums */
-enum { CurNormal, CurResize, CurMove, CurLast }; /* cursor */
-enum { SchemeNorm, SchemeSel, SchemeStatus, SchemeHid }; /* color schemes */
-enum { NetSupported, NetWMName, NetWMState, NetWMCheck,
-       NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
-       NetWMFullscreen, NetActiveWindow, NetWMWindowType,
-       NetWMWindowTypeDialog, NetClientList, NetClientInfo, NetLast }; /* EWMH atoms */
-enum { Manager, Xembed, XembedInfo, XLast }; /* Xembed atoms */
-enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast }; /* default atoms */
-enum { ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
-       ClkClientWin, ClkRootWin, ClkLast }; /* clicks */
-
-typedef union {
-	int i;
-	unsigned int ui;
-	float f;
-	const void *v;
-} Arg;
-
-typedef struct {
-	unsigned int click;
-	unsigned int mask;
-	unsigned int button;
-	void (*func)(const Arg *arg);
-	const Arg arg;
-} Button;
-
-typedef struct Monitor Monitor;
-
-/// In the context of dwm the Client represents a window that is managed by the
-/// window manager. A set of clients is represented in form of a linked list.
-typedef struct Client Client;
-struct Client {
-    /// The name holds the window title.
-	char name[256];
-
-    /// The mina and maxa represents the minimum and maximum aspect ratios as per size hints.
-	float mina, maxa;
-
-	/// The client x, y coordinates and size (width, height).
-	int x, y, w, h;
-
-	int oldx, oldy, oldw, oldh;
-
-    /* These variables are all in relation to size hints.
-	 *    basew - base width
-	 *    baseh - base height
-	 *    incw - width increment
-	 *    inch - height increment
-	 *    minw - minimum width
-	 *    minh - minimum height
-	 *    maxw - maximum width
-	 *    maxh - maximum height
-	 *    hintsvalid - flag indicating whether size hints need to be refreshed
-	 */
-	int basew, baseh, incw, inch, maxw, maxh, minw, minh, hintsvalid;
-
-	int bw, oldbw;
-
-	/* This represents the tags the client is shown on. This is a bitmask where each bit
-	 * represents whether the client is shown on that tag.
-	 *
-	 * As an example consider the hexadecimal value of 0x51 (decimal 81) which has a binary
-	 * value of:
-	 *    001010001  - bitmask
-	 *    987654321  - tags
-	 *
-	 * This would mean that the client is shown on tags 1, 5 and 7.
-	 */
-	unsigned int tags;
-
-    /// The workspace the client is attached too
-    unsigned int workspace;
-
-	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen, isterminal, noswallow;
-	pid_t pid;
-
-	/// The next client in the client list, which is a linked list. The client list controls the
-	/// order in which clients are tiled.
-	Client *next;
-
-	/* The next client in the stacking order list, which is also a linked list. The stacking
-	 * order indicates which window is on top of others as well as the order in which clients
-	 * had focus. */
-	Client *snext;
-
-	Client *swallowing;
-
-    /// The monitor this client belongs to.
-	Monitor *mon;
-
-    /// The managed window that this client represents.
-	Window win;
-};
-
-typedef struct {
-	unsigned int mod;
-	KeySym keysym;
-	void (*func)(const Arg *);
-	const Arg arg;
-} Key;
-
-typedef struct {
-	const char *symbol;
-	void (*arrange)(Monitor *);
-} Layout;
-
-struct Monitor {
-	char ltsymbol[16];
-
-    /// What percentage of the screen master gets
-	float mfact;
-
-	/* This represents the number of clients that are to be tiled in the master area. This has
-	 * no upper limit but cannot be less than 0. The default value is configured in the
-	 * configuration file and the value is adjusted via the incnmaster function. */
-    //  Default nmaster = 1:
-    // ┌───────────┬────┐
-    // │           │ C2 │
-    // │    C1     ├────┤
-    // │  (master) │ C3 │
-    // │           ├────┤
-    // │           │ C4 │
-    // └───────────┴────┘
-    //
-    // With nmaster = 2:
-    // ┌───────────┬────┐
-    // │    C1     │ C3 │
-    // │  (master) ├────┤
-    // ├───────────┤ C4 │
-    // │    C2     ├────┤
-    // │ (also     │ C5 │
-    // │  master)  │    │
-    // └───────────┴────┘
-	int nmaster;
-
-	int num;
-
-	/* The by variable defines the bar windows position on the y axis and this is set in the
-	 * updatebarpos function. */
-	int by;               /* bar geometry */
-	int btw;              /* width of tasks portion of bar */
-	int bt;               /* number of tasks */
-
-	/* These variables represents the position and dimensions of the monitor.
-	 *    mx - monitor position on the x-axis
-	 *    my - monitor position on the y-axis
-	 *    mw - the monitor's width
-	 *    mh - the monitor's height
-	 */
-	int mx, my, mw, mh;
-
-	/* These variables represents the position and dimensions of the window area, as in the part
-	 * of the monitor where windows are tiled. This is the space of the monitor excluding the
-	 * bar window. These are set in the updatebarpos function.
-	 *    wx - window area position on the x-axis
-	 *    wy - window area position on the y-axis
-	 *    ww - the window area's width
-	 *    wh - the window area's height
-	 */
-	int wx, wy, ww, wh;
-
-	/* The seltags variable is either 0 or 1 and represents the currently selected tagset.
-	 *
-	 * This allows for a clever mechanism where one can easily flip between the current and
-	 * previous tagset by simply flipping the value of seltags:
-	 *
-	 *    selmon->seltags ^= 1;
-	 *
-	 * For this reason when referring to the selected tags for a monitor you will often find
-	 * these kind of patterns:
-	 *
-	 *    m->tagset[m->seltags]
-	 *    selmon->tagset[selmon->seltags]
-	 *    c->mon->tagset[c->mon->seltags]
-	 *
-	 * In principle this could just have been defined as two variables for the monitor.
-	 *
-	 *    m->tags
-	 *    m->prevtags
-	 *
-	 * which would make the above patterns slightly easier to read, i.e.
-	 *
-	 *    m->tags
-	 *    selmon->tags
-	 *    c->mon->tags
-	 *
-	 * The benefit of using this mechanism, however, is that we save on a single line of code
-	 * in the view function when the argument is 0 and we toggle back to the previous view.
-	 */
-	unsigned int seltags;
-
-	/* The sellt variable is either 0 or 1 and represents the currently selected layout. This
-	 * follows the same mechanism as seltags above giving patterns such a:
-	 *
-	 *    m->lt[m->sellt]
-	 *    selmon->lt[selmon->sellt]
-	 *    c->mon->lt[c->mon->sellt]
-	 */
-	unsigned int sellt;
-
-	/* This array holds the previously and currently viewed tags for the monitor, the index of
-	 * which is indicated by the seltags variable. */
-	unsigned int tagset[2];
-
-	/* This represents the workspaces the monitor owns.
-	 *
-	 * As an example consider the hexadecimal value of 0x51 (decimal 81) which has a binary
-	 * value of:
-	 *    001010001  - bitmask
-	 *    987654321  - workspaces
-	 *
-	 * This would mean that the monitor owns workspaces 1, 5 and 7.
-	 */
-    unsigned int workspaces;
-
-    /// The currently selected workspace and the one being displayed on the monitor.
-    /// Also it has the previously displayed workspace.
-    unsigned int selected_workspaces[2];
-
-    int selected_workspace;
-
-	/* Internal flag indicating whether the bar is shown or not. */
-	int showbar;
-
-	/* Internal flag indicating whether the bar is shown at the top or at the bottom. */
-	int topbar;
-
-	int hidsel;
-
-	/* The client list. This represents the start of a linked list of clients which determines
-	 * the order in which clients are tiled. */
-	Client *clients;
-
-	/* This represents the monitor's selected client. */
-	Client *sel;
-
-	/* The stacking order list. This represents the order in which client windows are stacked on
-	 * top of each other, as well as the order in which clients had last focus. */
-	Client *stack;
-
-	/* Monitors are also managed as a linked list with the mons variable referring to the first
-	 * monitor. The next variable on the monitor refers to the next monitor in the list. */
-	Monitor *next;
-
-	/* This is the bar window which is used to draw the bar. Each monitor has their own bar. */
-	Window barwin;
-
-	const Layout *lt[2];
-};
-
-typedef struct {
-	const char *class;
-	const char *instance;
-	const char *title;
-	unsigned int workspace;
-	int isfloating;
-	int isterminal;
-	int noswallow;
-	int monitor;
-} Rule;
-
-typedef struct Systray   Systray;
-struct Systray {
-	Window win;
-	Client *icons;
-};
-
-/* function declarations */
-static void applyrules(Client *c);
-static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int *bw, int interact);
-static void arrange(Monitor *m);
-static void arrangemon(Monitor *m);
-static void attach(Client *c);
-static void attachstack(Client *c);
-static void buttonpress(XEvent *e);
-static void checkotherwm(void);
-static void cleanup(void);
-static void cleanupmon(Monitor *mon);
-static void clientmessage(XEvent *e);
-static void configure(Client *c);
-static void configurenotify(XEvent *e);
-static void configurerequest(XEvent *e);
-static Monitor *createmon(void);
-static void destroynotify(XEvent *e);
-static void detach(Client *c);
-static void detachstack(Client *c);
-static Monitor *dirtomon(int dir);
-static void drawbar(Monitor *m);
-static void drawbars(void);
-static int drawstatusbar(Monitor *m, int bh, char* text);
-static void enternotify(XEvent *e);
-static void expose(XEvent *e);
-static void focus(Client *c);
-static void focusin(XEvent *e);
-static void focusmon(const Arg *arg);
-static void focusstackvis(const Arg *arg);
-static void focusstackhid(const Arg *arg);
-static void focusstack(int inc, int hid);
-static Atom getatomprop(Client *c, Atom prop);
-static int getrootptr(int *x, int *y);
-static long getstate(Window w);
-static unsigned int getsystraywidth();
-static int gettextprop(Window w, Atom atom, char *text, unsigned int size);
-static void grabbuttons(Client *c, int focused);
-static void grabkeys(void);
-static void hide(const Arg *arg);
-static void hidewin(Client *c);
-static void incnmaster(const Arg *arg);
-static void keypress(XEvent *e);
-static void killclient(const Arg *arg);
-static void manage(Window w, XWindowAttributes *wa);
-static void mappingnotify(XEvent *e);
-static void maprequest(XEvent *e);
-static void monocle(Monitor *m);
-static void motionnotify(XEvent *e);
-static void movemouse(const Arg *arg);
-static void movetoworkspace(const Arg *arg);
-static Client *nexttiled(Client *c);
-static void pop(Client *c);
-static void propertynotify(XEvent *e);
-static void quit(const Arg *arg);
-static Monitor *recttomon(int x, int y, int w, int h);
-static void removesystrayicon(Client *i);
-static void resize(Client *c, int x, int y, int w, int h, int bw, int interact);
-static void resizebarwin(Monitor *m);
-static void resizeclient(Client *c, int x, int y, int w, int h, int bw);
-static void resizemouse(const Arg *arg);
-static void resizerequest(XEvent *e);
-static void restack(Monitor *m);
-static void run(void);
-static void scan(void);
-static int sendevent(Window w, Atom proto, int m, long d0, long d1, long d2, long d3, long d4);
-static void sendmon(Client *c, Monitor *m);
-static void sendtoworkspace(const Arg *arg);
-static void setclientstate(Client *c, long state);
-static void setclientworkspaceprop(Client *c);
-static void setfocus(Client *c);
-static void setfullscreen(Client *c, int fullscreen);
-static void setlayout(const Arg *arg);
-static void setmfact(const Arg *arg);
-static void setup(void);
-static void seturgent(Client *c, int urg);
-static void show(const Arg *arg);
-static void showall(const Arg *arg);
-static void showwin(Client *c);
-static void showhide(Client *c);
-static void sighup(int unused);
-static void sigterm(int unused);
-static void spawn(const Arg *arg);
-static Monitor *systraytomon(Monitor *m);
-static void tagmon(const Arg *arg);
-static void tile(Monitor *m);
-static void togglebar(const Arg *arg);
-static void togglefloating(const Arg *arg);
-static void togglewin(const Arg *arg);
-static void unfocus(Client *c, int setfocus);
-static void unmanage(Client *c, int destroyed);
-static void unmapnotify(XEvent *e);
-static void updatebarpos(Monitor *m);
-static void updatebars(void);
-static void updateclientlist(void);
-static int updategeom(void);
-static void updatemotifhints(Client *c);
-static void updatenumlockmask(void);
-static void updatesizehints(Client *c);
-static void updatestatus(void);
-static void updatesystray(void);
-static void updatesystrayicongeom(Client *i, int w, int h);
-static void updatesystrayiconstate(Client *i, XPropertyEvent *ev);
-static void updatetitle(Client *c);
-static void updatewindowtype(Client *c);
-static void updatewmhints(Client *c);
-static void view(const Arg *arg);
-static void viewworkspace(const Arg *arg);
-static Client *wintoclient(Window w);
-static Monitor *wintomon(Window w);
-static Client *wintosystrayicon(Window w);
-static int xerror(Display *dpy, XErrorEvent *ee);
-static int xerrordummy(Display *dpy, XErrorEvent *ee);
-static int xerrorstart(Display *dpy, XErrorEvent *ee);
-static void zoom(const Arg *arg);
-static pid_t getparentprocess(pid_t p);
-static int isdescprocess(pid_t p, pid_t c);
-static Client *swallowingclient(Window w);
-static Client *termforwin(const Client *c);
-static pid_t winpid(Window w);
-
-/* variables */
-static Systray *systray = NULL;
-static const char broken[] = "broken";
-static char stext[1024];
-static int screen;
-static int sw, sh;           /* X display screen geometry width, height */
-static int bh;               /* bar height */
-static int lrpad;            /* sum of left and right padding for text */
-static int (*xerrorxlib)(Display *, XErrorEvent *);
-static unsigned int numlockmask = 0;
-static void (*handler[LASTEvent]) (XEvent *) = {
+Systray *systray = NULL;
+const char broken[] = "broken";
+char stext[1024];
+int screen;
+int sw, sh;
+int bh;
+int lrpad;
+int (*xerrorxlib)(Display *, XErrorEvent *);
+unsigned int numlockmask = 0;
+void (*handler[LASTEvent]) (XEvent *) = {
 	[ButtonPress] = buttonpress,
 	[ClientMessage] = clientmessage,
 	[ConfigureRequest] = configurerequest,
@@ -502,27 +79,19 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 	[MapRequest] = maprequest,
 	[MotionNotify] = motionnotify,
 	[PropertyNotify] = propertynotify,
-    [ResizeRequest] = resizerequest,
+	[ResizeRequest] = resizerequest,
 	[UnmapNotify] = unmapnotify
 };
-static Atom wmatom[WMLast], netatom[NetLast], xatom[XLast], motifatom;
-static int restart = 0;
-static int running = 1;
-static Cur *cursor[CurLast];
-static Clr **scheme;
-static Display *dpy;
-static Drw *drw;
-
-/// First monitor and selected monitor
-static Monitor *mons, *selmon;
-
-/// Root window and supporting window
-static Window root, wmcheckwin;
-
-static xcb_connection_t *xcon;
-
-/* configuration, allows nested code to access above variables */
-#include "config.h"
+Atom wmatom[WMLast], netatom[NetLast], xatom[XLast], motifatom;
+int restart = 0;
+int running = 1;
+Cur *cursor[CurLast];
+Clr **scheme;
+Display *dpy;
+Drw *drw;
+Monitor *mons, *selmon;
+Window root, wmcheckwin;
+xcb_connection_t *xcon;
 
 /* function implementations */
 
@@ -802,6 +371,7 @@ swallow(Client *p, Client *c)
 
 	detach(c);
 	detachstack(c);
+    treenode_remove(c);
 	setclientstate(c, WithdrawnState);
 	XUnmapWindow(dpy, p->win);
 	p->swallowing = c;
@@ -1896,8 +1466,18 @@ manage(Window w, XWindowAttributes *wa)
 		c->isfloating = c->oldstate = trans != None || c->isfixed;
 	if (c->isfloating)
 		XRaiseWindow(dpy, c->win);
+
+	/* Add the client to the client list. New clients are always added at the top of the list
+	 * making them the new master client. */
 	attach(c);
+	
+    /* Add the client to the stacking order list. New additions are always added at the top of
+	 * the list to indicate order in which clients had focus. */
 	attachstack(c);
+
+    /// Create a tree node for our newly created client.
+    treenode_add(c);
+
 	XChangeProperty(dpy, root, netatom[NetClientList], XA_WINDOW, 32, PropModeAppend,
 		(unsigned char *) &(c->win), 1);
 	XMoveResizeWindow(dpy, c->win, c->x + 2 * sw, c->y, c->w, c->h); /* some windows require this */
@@ -1905,12 +1485,21 @@ manage(Window w, XWindowAttributes *wa)
 		setclientstate(c, NormalState);
 	if (c->mon == selmon)
 		unfocus(selmon->sel, 0);
+
+
+	/* The new client is assumed to be the selected client on the client's monitor. */
 	c->mon->sel = c;
+
+	/* An arrange to resize and reposition clients in the event that this new client is shown. */
 	arrange(c->mon);
+
 	if (!HIDDEN(c))
 		XMapWindow(dpy, c->win);
 	if (term)
 		swallow(term, c);
+
+	/* Finally a focus to give input focus to the next client in line (will be the new client,
+	 * if shown, otherwise it will likely be the previously selected client). */
 	focus(NULL);
 }
 
@@ -2392,12 +1981,16 @@ sendmon(Client *c, Monitor *m)
 	 * stacking order list before we can move the client. */
 	detach(c);
 	detachstack(c);
+	treenode_remove(c);
 
 	/* Set the client's monitor to be the target monitor. */
 	c->mon = m;
 
     // Set to the currently viewed workspace on the target monitor
 	c->workspace = m->selected_workspaces[m->selected_workspace];
+
+    // Make a treenode for the newly created client
+	treenode_add(c);
 
 	/* Add the client to the target monitor's client list. */
 	attach(c);
@@ -2967,6 +2560,7 @@ unfocus(Client *c, int setfocus)
 	}
 }
 
+/// This function controls what happens when the window manager stops managing a window.
 void
 unmanage(Client *c, int destroyed)
 {
@@ -2987,23 +2581,71 @@ unmanage(Client *c, int destroyed)
 		return;
 	}
 
+	/* Remove the given client from both the client list and the stack order list. */
 	detach(c);
 	detachstack(c);
+
+    treenode_remove(c);
+
+	/* If the window has already been destroyed then we don't have to take any further action
+	 * with regards to the window itself. The function parameter destroyed will be true (1) if
+	 * unmanage is called from the destroynotify function.
+	 */
 	if (!destroyed) {
+		/* In principle this is intended to set the client's border width back to what it was
+		 * before dwm started managing it. This can be deduced by that in the manage function
+		 * we set c->oldbw to the border width of the original window attributes. There is no
+		 * guarantee, however, that the c->oldbw will still hold this value as the
+		 * setfullscreen function relies on the same variable to store the client's border
+		 * width before going into fullscreen. */
 		wc.border_width = c->oldbw;
+
+		/* This disables processing of requests and close downs on all other connections than
+		 * the one this request arrived on. */
 		XGrabServer(dpy); /* avoid race conditions */
+
+		/* Here we set the dummy X error handler just in case what we do next is going to
+		 * generate an error that would otherwise cause dwm to exit. */
 		XSetErrorHandler(xerrordummy);
+
+		/* This call tells the X server that we are no longer interested in receiving events for
+		 * the given window. If the window stops being managed by the window manager and is being
+		 * managed by some other program, like tabbed for example, then we do not want the window
+		 * manager interferring by reacting to FocusIn events for said window. */
 		XSelectInput(dpy, c->win, NoEventMask);
+
+		/* This is to clear / remove the border that is drawn around the window */
 		XConfigureWindow(dpy, c->win, CWBorderWidth, &wc); /* restore border */
+
+		/* Stop listening for any button press notification for this window */
 		XUngrabButton(dpy, AnyButton, AnyModifier, c->win);
+
+		/* Change the client state to withdrawn (not shown) */
 		setclientstate(c, WithdrawnState);
+
+		/* This flushes the output buffer and then waits until all requests have been
+		 * received and processed by the X server. */
 		XSync(dpy, False);
+
+		/* Revert to the normal X error handler */
 		XSetErrorHandler(xerror);
+
+		/* This restarts processing of requests and close downs on other connections */
 		XUngrabServer(dpy);
 	}
+
+	/* Free memory consumed by the client structure */
 	free(c);
+
+	/* Focus on the next client in the stacking order */
 	focus(NULL);
+
+	/* As we have one less window being managed by the window manager we should update the
+	 * _NET_CLIENT_LIST property of the root window. */
 	updateclientlist();
+
+	/* Finally an arrange call to allow the remaining tiled clients to take advantage of the
+	 * space the unmanaged window left behind. */
 	arrange(m);
 }
 

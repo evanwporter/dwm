@@ -3,32 +3,45 @@
 
 include config.mk
 
-SRC = drw.c dwm.c util.c
+SRC = drw.c dwm.c keymaps.c
 OBJ = ${SRC:.c=.o}
+
+UTIL_SRC = util.c tree.c
+UTIL_OBJ = ${UTIL_SRC:.c=.o}
+
+TEST_SRC = test/move_node.c test/dwm_stubs.c
+TEST_OBJ = ${TEST_SRC:.c=.o}
+
+CRITERION_CFLAGS = $(shell pkg-config --cflags criterion)
+CRITERION_LIBS = $(shell pkg-config --libs criterion)
+
+${TEST_OBJ}: CFLAGS += ${CRITERION_CFLAGS}
 
 all: dwm
 
-.c.o:
-	${CC} -c ${CFLAGS} $<
+compile_commands:
+	bear --output compile_commands.json -- make clean all
 
+# Creates a rule for building .o files from .c files
+%.o: %.c
+	${CC} -c ${CFLAGS} -o $@ $<
+
+# Tells make that every OBJ file depends on config.h and config.mk, 
+# so if either of those files change, the .o files will be rebuilt
 ${OBJ}: config.h config.mk
 
-config.h:
-	cp config.def.h $@
-
-dwm: ${OBJ}
-	${CC} -o $@ ${OBJ} ${LDFLAGS}
+config.h: config.def.h 
+	cp $< $@
 
 clean:
-	rm -f dwm ${OBJ} dwm-${VERSION}.tar.gz
+	rm -f dwm ${OBJ}
+	rm -f tests ${TEST_OBJ} ${UTIL_OBJ}
 
-dist: clean
-	mkdir -p dwm-${VERSION}
-	cp -R LICENSE Makefile README config.def.h config.mk\
-		dwm.1 drw.h util.h ${SRC} dwm.png transient.c dwm-${VERSION}
-	tar -cf dwm-${VERSION}.tar dwm-${VERSION}
-	gzip dwm-${VERSION}.tar
-	rm -rf dwm-${VERSION}
+tests: ${TEST_OBJ} ${UTIL_OBJ}
+	${CC} -o $@ $^ ${LDFLAGS} ${CRITERION_LIBS}
+
+dwm: ${OBJ} ${UTIL_OBJ}
+	${CC} -o $@ $^ ${LDFLAGS}
 
 install: all
 	mkdir -p ${DESTDIR}${PREFIX}/bin
@@ -38,8 +51,4 @@ install: all
 	sed "s/VERSION/${VERSION}/g" < dwm.1 > ${DESTDIR}${MANPREFIX}/man1/dwm.1
 	chmod 644 ${DESTDIR}${MANPREFIX}/man1/dwm.1
 
-uninstall:
-	rm -f ${DESTDIR}${PREFIX}/bin/dwm\
-		${DESTDIR}${MANPREFIX}/man1/dwm.1
-
-.PHONY: all clean dist install uninstall
+.PHONY: all clean compile_commands
