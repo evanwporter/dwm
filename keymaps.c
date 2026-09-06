@@ -1,9 +1,16 @@
 #include "dwm.h"
 
+#include <string.h>
+
 static int
 intree(void)
 {
-    return selmon->lt[selmon->sellt]->arrange == tree;
+    const Layout *layout;
+
+    if (!selmon || !(layout = selmon->lt[selmon->sellt]))
+        return 0;
+
+    return layout->arrange == tree || !strcmp(layout->symbol, "[T]");
 }
 
 void
