@@ -5,12 +5,12 @@
 #include "config.h"
 
 static void
-tree_recurse(TreeNode *node, int x, int y, int w, int h)
+tree_recurse(TreeNode *node, int x, int y, int w, int h, int bw)
 {
     assert(node->client || (node->a && node->b));
 
     if (node->client) {
-        resize(node->client, x, y, w, h, borderpx, 0);
+        resize(node->client, x, y, w, h, bw, 0);
         return;
     }
 
@@ -21,15 +21,15 @@ tree_recurse(TreeNode *node, int x, int y, int w, int h)
         //  ├─────────┤
         //  │    b    │
         //  └─────────┘
-        tree_recurse(node->a, x, y, w, h / 2); // Top half
-        tree_recurse(node->b, x, y + h / 2, w, h / 2); // Bottom half
+        tree_recurse(node->a, x, y, w, h / 2, bw); // Top half
+        tree_recurse(node->b, x, y + h / 2, w, h / 2, bw); // Bottom half
     } else {
         // Side by side: a on left, b on right
         //  ┌─────┬─────┐
         //  │  a  │  b  │
         //  └─────┴─────┘
-        tree_recurse(node->a, x, y, w / 2, h); // Left half
-        tree_recurse(node->b, x + w / 2, y, w / 2, h); // Right half
+        tree_recurse(node->a, x, y, w / 2, h, bw); // Left half
+        tree_recurse(node->b, x + w / 2, y, w / 2, h, bw); // Right half
     }
 }
 
@@ -43,10 +43,22 @@ tree(Monitor *m)
         return;
     }
 
+    int n, bw;
+    Client *c;
+
+	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
+
+	if (n == 0)
+		return;
+    if (n == 1)
+		bw = 0;
+    else 
+        bw = borderpx;
+
     TreeNode *node = m->root;
 
     // pass along the window boundaries
-    tree_recurse(node, m->mx, m->my, m->ww, m->wh);
+    tree_recurse(node, m->mx, m->my, m->ww, m->wh, bw);
 }
 
 static void
