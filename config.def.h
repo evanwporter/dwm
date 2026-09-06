@@ -175,7 +175,7 @@ static const Button buttons[] = {
 	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0} },
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
 	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
-	{ ClkTagBar,            0,              Button1,        view,           {0} },
+	{ ClkTagBar,            0,              Button1,        viewworkspace,  {0} },
     // TODO: Use workspace instead
     // { ClkTagBar,            0,              Button3,        toggleview,     {0} },
 	// { ClkTagBar,            MODKEY,         Button1,        tag,            {0} },

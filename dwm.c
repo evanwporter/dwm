@@ -2110,9 +2110,16 @@ setfullscreen(Client *c, int fullscreen)
 	}
 }
 
+/* User function to set the layout.
+ */
 void
 setlayout(const Arg *arg)
 {
+	/* Toggle the selected layout if:
+	 *    - a NULL argument was passed to setlayout or
+	 *    - an argument with value of 0 was passed to setlayout or
+	 *    - if the new layout is different to the previous layout
+	 */
 	if (!arg || !arg->v || arg->v != selmon->lt[selmon->sellt])
 		selmon->sellt ^= 1;
 	if (arg && arg->v)
