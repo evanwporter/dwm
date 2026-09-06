@@ -1,4 +1,8 @@
 /* See LICENSE file for copyright and license details. */
+
+#ifndef CONFIG_H
+#define CONFIG_H
+
 #include "dwm.h"
 #include <X11/X.h>
 
@@ -177,3 +181,5 @@ static const Button buttons[] = {
 	// { ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
 	// { ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
 };
+
+#endif

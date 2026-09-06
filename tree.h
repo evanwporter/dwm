@@ -31,6 +31,7 @@ struct TreeNode {
 
 void tree(Monitor *m);
 void treenode_add(Client *c);
+void treenode_auto_add(Client *c);
 void treenode_move(const Arg *arg);
 void treenode_navigate(const Arg *arg);
 void treenode_remove(Client *c);

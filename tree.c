@@ -38,7 +38,7 @@ tree(Monitor *m)
 {
     // If the root tree node of the current monitor is null for whatever reason
     // then we just provide the tiling layout
-    if (!m->root) {
+    if (!workspace_roots[m->selected_workspaces[m->sel_ws] - 1]) {
         tile(m);
         return;
     }
@@ -55,7 +55,7 @@ tree(Monitor *m)
     else 
         bw = borderpx;
 
-    TreeNode *node = m->root;
+    TreeNode *node = workspace_roots[m->selected_workspaces[m->sel_ws] - 1];
 
     // pass along the window boundaries
     tree_recurse(node, m->mx, m->my, m->ww, m->wh, bw);
@@ -127,8 +127,6 @@ treenode_remove(Client* c)
 
     TreeNode *sibling, *parent, *grandparent;
 
-    Monitor *m = c->mon;
-
     if (!node) 
         return;
 
@@ -138,10 +136,10 @@ treenode_remove(Client* c)
     // make sure it points to the same client
     assert(node->client == c);
 
-    if (m->root == node) {
+    if (workspace_roots[c->workspace - 1] == node) {
         // node is the root node within the monitor
         
-        m->root = NULL;
+        workspace_roots[c->workspace - 1] = NULL;
         c->node = NULL;
 
         free(node);
@@ -181,7 +179,7 @@ treenode_remove(Client* c)
         sibling->parent = grandparent;
     } else {
         // parent is the root node, thus the new root node becomes sibling
-        m->root = sibling;
+        workspace_roots[c->workspace - 1] = sibling;
 
         // TODO: This may not be necessary
         sibling->is_A = 1;
@@ -198,21 +196,19 @@ treenode_remove(Client* c)
     c->node = NULL;
 }
 
-void
-treenode_add(Client *c)
+static void
+treenode_internal_add(Client *c, Client *focused)
 {
-    Client *focused;
     TreeNode *focused_node, *node_a, *node_b;
 
     if (!c || !c->mon || c->node)
         return;
 
-    focused = c->mon->sel;
-    if (!c->mon->root || !focused || !focused->node) {
+    if (!workspace_roots[c->workspace - 1] || !focused || !focused->node) {
         // Early Exit if there is no root node
         c->node = ecalloc(1, sizeof(*c->node));
         c->node->client = c;
-        c->mon->root = c->node;
+        workspace_roots[c->workspace - 1] = c->node;
         return;
     }
 
@@ -240,6 +236,17 @@ treenode_add(Client *c)
     focused_node->a = node_a;
     focused_node->b = node_b;
     focused_node->client = NULL;
+}
+
+void
+treenode_add(Client *c)
+{
+    if (!c || !c->mon || c->node)
+        return;
+
+    Client *focused = c->mon->sel;
+
+    treenode_internal_add(c, focused);
 }
 
 static TreeNode *
@@ -325,3 +332,51 @@ treenode_navigate(const Arg *arg)
     }
 }
 
+static TreeNode*
+closest_leaf(int workspace)
+{
+    if (!workspace_roots[workspace - 1])
+        return NULL;
+
+    TreeNode *queue[64];
+    int front = 0;
+    int rear = 1;
+
+    queue[0] = workspace_roots[workspace - 1];
+
+    while (front < rear) { // check if the queue is empty
+        TreeNode *current = queue[front];
+        front++;
+        
+        if (current->a == NULL && current->b == NULL)
+            return current;
+
+        if (current->a != NULL) {
+            queue[rear] = current->a;
+            rear++;
+        }
+
+        if (current->b != NULL) {
+            queue[rear] = current->b;
+            rear++;
+        }
+    }
+
+    // Should never get here
+    return NULL;
+}
+
+/// This automatically places a new client based on the shortest leaf.
+/// This is called by send_to_workspace, when the focused client is not 
+/// in the same workspace as the target workspace.
+void
+treenode_auto_add(Client *c)
+{
+
+    if (!c || !c->mon || c->node)
+        return;
+
+    TreeNode *node = closest_leaf(c->workspace);
+    Client *focused = node ? node->client : NULL;
+    treenode_internal_add(c, focused);
+}

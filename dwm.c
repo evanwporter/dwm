@@ -21,6 +21,7 @@
  * To understand everything else, start reading main().
  */
 
+#include "tree.h"
 #include <errno.h>
 #include <locale.h>
 #include <signal.h>
@@ -92,6 +93,7 @@ Drw *drw;
 Monitor *mons, *selmon;
 Window root, wmcheckwin;
 xcb_connection_t *xcon;
+TreeNode *workspace_roots[LENGTH(workspaces)];
 
 /* function implementations */
 
@@ -228,7 +230,7 @@ applyrules(Client *c)
 	 * then we show the client on whatever tag(s) the client's monitor has active. */
 	c->tags = CHECK_WS_BOUNDS(c->workspace) 
         ? c->workspace 
-        : c->mon->selected_workspaces[c->mon->selected_workspace];
+        : c->mon->selected_workspaces[c->mon->sel_ws];
 }
 
 int
@@ -428,7 +430,7 @@ buttonpress(XEvent *e)
 		
         do {
             /* Do not reserve space for vacant workspaces. */
-            if (!(occ & (1U << i) || i + 1 == m->selected_workspaces[m->selected_workspace]))
+            if (!(occ & (1U << i) || i + 1 == m->selected_workspaces[m->sel_ws]))
                 continue;
 			x += TEXTW(workspaces[i]);
         } while (ev->x >= x && ++i < LENGTH(workspaces));
@@ -943,13 +945,13 @@ drawbar(Monitor *m)
 	x = 0;
 	for (i = 0; i < LENGTH(workspaces); i++) {
         /* Do not draw vacant tags */
-        if (!(occ & (1U << i) || i + 1 == m->selected_workspaces[m->selected_workspace]))
+        if (!(occ & (1U << i) || i + 1 == m->selected_workspaces[m->sel_ws]))
             continue;
 
 		/* The user can define their own tag symbols (or text) so the width of each tag can
 		 * differ from tag to tag. */
 		w = TEXTW(workspaces[i]);
-		drw_setscheme(drw, scheme[i + 1 == m->selected_workspaces[m->selected_workspace] ? SchemeSel : SchemeNorm]);
+		drw_setscheme(drw, scheme[i + 1 == m->selected_workspaces[m->sel_ws] ? SchemeSel : SchemeNorm]);
 		drw_text(drw, x, 0, w, bh, lrpad / 2, workspaces[i], urg & (1U << i));
 		x += w;
 	}
@@ -1424,7 +1426,7 @@ manage(Window w, XWindowAttributes *wa)
 		applyrules(c);
 
 		/* Assign the client to the currently viewed workspace on its monitor. */
-		c->workspace = c->mon->selected_workspaces[c->mon->selected_workspace];
+		c->workspace = c->mon->selected_workspaces[c->mon->sel_ws];
 
 		term = termforwin(c);
 	}
@@ -1987,7 +1989,7 @@ sendmon(Client *c, Monitor *m)
 	c->mon = m;
 
     // Set to the currently viewed workspace on the target monitor
-	c->workspace = m->selected_workspaces[m->selected_workspace];
+	c->workspace = m->selected_workspaces[m->sel_ws];
 
     // Make a treenode for the newly created client
 	treenode_add(c);
@@ -2395,15 +2397,18 @@ sendtoworkspace(const Arg *arg)
 {
     // Only proceed if the current monitor has a focused client
     // and the workspace arg is a valid workspace
-    if (selmon->sel && arg->ui >= 1 && arg->ui <= LENGTH(workspaces)) {
-        // Change the focused client to a new workspace (assuming said workspace exists)
-        selmon->sel->workspace = arg->ui;
+    if (selmon->sel && CHECK_WS_BOUNDS(arg->ui)
+        && selmon->sel->workspace != arg->ui) {
+        Client *c = selmon->sel;
 
-        setclientworkspaceprop(selmon->sel);
+        /* Tree root is keyed by workspace. Remove before changing workspace. */
+        treenode_remove(c);
+        c->workspace = arg->ui;
+        setclientworkspaceprop(c);
 
-		/* Give input focus to the next client in the stack as the client may have been
-		 * moved to a tag that is not viewed. */
+		/* Focus visible target-workspace client before inserting into its tree. */
         focus(NULL);
+        treenode_auto_add(c);
 
         arrange(selmon);
     }
@@ -3069,11 +3074,11 @@ viewworkspace(const Arg *arg)
 {
 	/* If the given workspace is the same as what is currently shown then do nothing. This makes
 	 * it so that if you are on workspace 7 and you hit MOD+7 then nothing happens. */
-	if (arg->ui == selmon->selected_workspaces[selmon->selected_workspace])
+	if (arg->ui == selmon->selected_workspaces[selmon->sel_ws])
 		return;  // Already on this workspace
 
 	/* This toggles between the previous and current tagset. */
-	selmon->selected_workspace ^= 1; /* toggle sel tagset */
+	selmon->sel_ws ^= 1; /* toggle sel tagset */
 
 	/* This sets the new tagset, unless the given unsigned int argument is 0. This has
 	 * specifically to do with the MOD+Tab keybinding that passes 0 as the bitmask to toggle
@@ -3082,7 +3087,7 @@ viewworkspace(const Arg *arg)
 	 *    { MODKEY,                       XK_Tab,    view,           {0} },
 	 */
 	if (arg->ui)
-		selmon->selected_workspaces[selmon->selected_workspace] = arg->ui;
+		selmon->selected_workspaces[selmon->sel_ws] = arg->ui;
 
 	/* Focus on the first visible client in the stack as the view has changed */
 	focus(NULL);
@@ -3098,7 +3103,7 @@ view(const Arg *arg)
 {
 	/* If the given bitmask is the same as what is currently shown then do nothing. This makes
 	 * it so that if you are on tag 7 and you hit MOD+7 then nothing happens. */
-    if (arg->ui == selmon->selected_workspaces[selmon->selected_workspace])
+    if (arg->ui == selmon->selected_workspaces[selmon->sel_ws])
         return;  // Already on this workspace
 
 	/* This toggles between the previous and current tagset. */

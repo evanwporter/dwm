@@ -2,7 +2,7 @@
 
 #include "../tree.h"
 
-void
+static void
 setup_stacked_pair(Monitor *monitor, Client *a_client, Client *b_client,
     TreeNode *root, TreeNode *a, TreeNode *b)
 {
@@ -22,12 +22,12 @@ setup_stacked_pair(Monitor *monitor, Client *a_client, Client *b_client,
     b_client->mon = monitor;
     b_client->node = b;
 
-    monitor->root = root;
+    workspace_roots[0] = root;
     monitor->sel = a_client;
     selmon = monitor;
 }
 
-void
+static void
 setup_nested_pair(Monitor *monitor, Client *a_client, Client *ba_client,
     Client *bb_client, TreeNode *root, TreeNode *a, TreeNode *b,
     TreeNode *ba, TreeNode *bb)
@@ -59,7 +59,7 @@ setup_nested_pair(Monitor *monitor, Client *a_client, Client *ba_client,
     bb_client->mon = monitor;
     bb_client->node = bb;
 
-    monitor->root = root;
+    workspace_roots[0] = root;
     monitor->sel = ba_client;
     selmon = monitor;
 }
@@ -70,7 +70,7 @@ typedef struct {
     TreeNode root, a, aa, aaa, aab, ab, b, ba, baa, bab, bb;
 } ComplexTree;
 
-void
+static void
 setup_complex_tree(ComplexTree *tree)
 {
     tree->root.a = &tree->a; tree->root.b = &tree->b; tree->root.stacked = 1;
@@ -91,7 +91,7 @@ setup_complex_tree(ComplexTree *tree)
     tree->aaa_client.node = &tree->aaa; tree->aab_client.node = &tree->aab; tree->ab_client.node = &tree->ab;
     tree->baa_client.node = &tree->baa; tree->bab_client.node = &tree->bab; tree->bb_client.node = &tree->bb;
 
-    tree->monitor.root = &tree->root;
+    workspace_roots[0] = &tree->root;
     tree->monitor.sel = &tree->baa_client;
     selmon = &tree->monitor;
 }

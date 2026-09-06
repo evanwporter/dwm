@@ -1,6 +1,8 @@
 #include "../dwm.h"
+#include "../config.h"
 
 Monitor *selmon;
+TreeNode *workspace_roots[LENGTH(workspaces)];
 
 void
 focus(Client *c)
@@ -40,4 +42,11 @@ void
 tile(Monitor *m)
 {
 	(void)m;
+}
+
+Client *
+nexttiled(Client *c)
+{
+	for (; c && (c->isfloating || !ISVISIBLE(c)); c = c->next);
+	return c;
 }

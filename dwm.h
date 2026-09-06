@@ -32,7 +32,7 @@
 #define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
                                * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
-#define ISVISIBLE(C)            ((C->workspace == C->mon->selected_workspaces[C->mon->selected_workspace]))
+#define ISVISIBLE(C)            ((C->workspace == C->mon->selected_workspaces[C->mon->sel_ws]))
 #define HIDDEN(C)               (getstate((C)->win) == IconicState)
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
@@ -290,7 +290,7 @@ struct Monitor {
     /// Also it has the previously displayed workspace.
     unsigned int selected_workspaces[2];
 
-    int selected_workspace;
+    int sel_ws;
 
 	/* Internal flag indicating whether the bar is shown or not. */
 	int showbar;
@@ -315,8 +315,8 @@ struct Monitor {
 	 * monitor. The next variable on the monitor refers to the next monitor in the list. */
 	Monitor *next;
 
-    /// The root of the tree tile display
-    TreeNode *root;
+    // /// The root of the tree tile display
+    // TreeNode *root;
 
 	/* This is the bar window which is used to draw the bar. Each monitor has their own bar. */
 	Window barwin;
@@ -494,5 +494,7 @@ extern Monitor *mons, *selmon;
 extern Window root, wmcheckwin;
 
 extern xcb_connection_t *xcon;
+
+extern TreeNode *workspace_roots[];
 
 #endif /* DWM_H */

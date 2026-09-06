@@ -65,7 +65,7 @@ Test(navigate_node, navigating_bb_up_focuses_baa_in_a_nested_tree)
     aaa_client.node = &aaa; aab_client.node = &aab; ab_client.node = &ab;
     baa_client.node = &baa; bab_client.node = &bab; bb_client.node = &bb;
 
-    monitor.root = &root;
+    workspace_roots[0] = &root;
     monitor.sel = &bb_client;
     selmon = &monitor;
 
