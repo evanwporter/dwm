@@ -1,8 +1,8 @@
 #include <assert.h>
-#include <stdio.h>
 
 #include "dwm.h"
 #include "tree.h"
+#include "config.h"
 
 static void
 tree_recurse(TreeNode *node, int x, int y, int w, int h)
@@ -10,8 +10,7 @@ tree_recurse(TreeNode *node, int x, int y, int w, int h)
     assert(node->client || (node->a && node->b));
 
     if (node->client) {
-        // TODO: adjust border width (bw)
-        resize(node->client, x, y, w, h, 0, 0);
+        resize(node->client, x, y, w, h, borderpx, 0);
         return;
     }
 
@@ -53,9 +52,8 @@ tree(Monitor *m)
 static void
 treemove_recurse(TreeNode *node, const Arg *arg, int op, int child_is_A)
 {
-    if (!node) {
+    if (!node)
         return;
-    }
 
     int left = arg->i == 0;
     int down = arg->i == 1;
@@ -93,9 +91,8 @@ treenode_move(const Arg *arg)
     /// Currenly focused client
     Client *sel = selmon->sel;
 
-    if (!sel || !sel->node) {
+    if (!sel || !sel->node)
         return;
-    }
 
     TreeNode *node = sel->node;
 
@@ -149,11 +146,10 @@ treenode_remove(Client* c)
     // the parent is not a leaf so it should not have a client
     assert(!parent->client);
 
-    if (node->is_A) {
+    if (node->is_A)
         sibling = parent->b;
-    } else {
+    else
         sibling = parent->a;
-    }
 
     grandparent = parent->parent;
      
@@ -201,6 +197,7 @@ treenode_add(Client *c)
 
     focused = c->mon->sel;
     if (!c->mon->root || !focused || !focused->node) {
+        // Early Exit if there is no root node
         c->node = ecalloc(1, sizeof(*c->node));
         c->node->client = c;
         c->mon->root = c->node;
@@ -224,14 +221,17 @@ treenode_add(Client *c)
     focused->node = node_a;
     c->node = node_b;
 
+    if (focused_node->parent)
+        focused_node->stacked = !focused_node->parent->stacked;
+    else focused_node->stacked = 0;
+
     focused_node->a = node_a;
     focused_node->b = node_b;
     focused_node->client = NULL;
-    focused_node->stacked = 0;
 }
 
 static TreeNode *
-treenode_nav(TreeNode *node, int dir)
+navigate_tree(TreeNode *node, int dir)
 {
     if (!node)
         return NULL;
@@ -258,9 +258,8 @@ treenode_nav(TreeNode *node, int dir)
             }
         } else {
             // Split is perpendicular: record position choice to preserve alignment
-            if (perp_count < 64) {
+            if (perp_count < 64)
                 perp_choices[perp_count++] = curr->is_A ? 1 : 0;
-            }
         }
 
         curr = parent;
@@ -276,11 +275,11 @@ treenode_nav(TreeNode *node, int dir)
         if (curr->stacked == is_vertical) {
             // Split is along our movement axis:
             // Pick child closest to boundary (a = top/left, b = bottom/right)
-            if (coming_from_a) {
+            if (coming_from_a)
                 curr = curr->a ? curr->a : curr->b;
-            } else {
+            else
                 curr = curr->b ? curr->b : curr->a;
-            }
+            
         } else {
             // Split is perpendicular: replay recorded LIFO choices
             if (perp_count > 0) {
@@ -306,7 +305,7 @@ treenode_navigate(const Arg *arg)
     if (!sel || !sel->node)
         return;
 
-    TreeNode *target = treenode_nav(sel->node, arg->i);
+    TreeNode *target = navigate_tree(sel->node, arg->i);
 
     if (target && target->client) {
         focus(target->client);
