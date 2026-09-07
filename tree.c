@@ -238,12 +238,18 @@ treenode_internal_add(Client *c, Client *focused)
 void
 treenode_add(Client *c)
 {
+    Client *focused;
+
     if (!c || !c->mon || c->node)
         return;
 
-    Client *focused = c->mon->sel;
-
-    treenode_internal_add(c, focused);
+    focused = c->mon->sel;
+    if (!workspace_roots[c->workspace - 1])
+        treenode_internal_add(c, NULL);
+    else if (focused && focused->workspace == c->workspace && focused->node)
+        treenode_internal_add(c, focused);
+    else
+        treenode_auto_add(c);
 }
 
 static TreeNode *
@@ -312,6 +318,25 @@ navigate_tree(TreeNode *node, int dir)
     }
 
     return curr;
+}
+
+void
+treenode_move_node(const Arg *arg)
+{
+    Client *sel = selmon->sel;
+    if (!sel || !sel->node)
+        return;
+
+    TreeNode *target = navigate_tree(sel->node, arg->i);
+
+    if (target && target->client) {
+        /* Remove first: insertion replaces sel->node.  Removing afterward
+         * would remove new leaf and leave old leaf pointing at sel. */
+        Client *target_client = target->client;
+        treenode_remove(sel);
+        treenode_internal_add(sel, target_client);
+        arrange(selmon);
+    }
 }
 
 void

@@ -1450,7 +1450,7 @@ manage(Window w, XWindowAttributes *wa)
 	if (XGetWindowProperty(dpy, c->win, netatom[NetClientInfo], 0L, 2L, False,
 		XA_CARDINAL, &actual, &format, &n, &extra, (unsigned char **)&data) == Success
 	    && actual == XA_CARDINAL && format == 32 && n == 2 && (0 <= data[0] && 
-        data[0] <= LENGTH(workspaces))) {
+        1 <= data[0] && data[0] <= LENGTH(workspaces))) {
         // data is { workspace, monitor # }
 		c->workspace = data[0];
 		for (m = mons; m; m = m->next)
@@ -1904,6 +1904,13 @@ resizerequest(XEvent *e)
 	}
 }
 
+/* The restack function's primary responsibility is to:
+ *    - make the selected client above others if it is floating and
+ *    - to place all tiled clients below the bar
+ *
+ * Additionally the restack function incorporates a call to drawbar out of convenience as the two
+ * are often called together.
+ */
 void
 restack(Monitor *m)
 {
@@ -1911,21 +1918,54 @@ restack(Monitor *m)
 	XEvent ev;
 	XWindowChanges wc;
 
+	/* The drawbar call here stands out as being misplaced as it has nothing to do with the
+	 * objective of the function, neither does the restacking affect anything in the bar.
+	 * Most likely it has been added out of convenience because often when restack is called we
+	 * also want to call drawbar for other reasons. Including that call in here saves a few
+	 * lines of code. */
 	drawbar(m);
+
+	/* Bail if there is no selected client on the given monitor. */
 	if (!m->sel)
 		return;
+
+	/* If the selected client is floating, or if we are using floating layout, then place the
+	 * selected window above all other windows. */
 	if (m->sel->isfloating || !m->lt[m->sellt]->arrange)
 		XRaiseWindow(dpy, m->sel->win);
+
+	/* If we are not using floating layout then we place all tiled clients below the bar
+	 * window (in terms of how windows stack on top of each other). */
 	if (m->lt[m->sellt]->arrange) {
 		wc.stack_mode = Below;
 		wc.sibling = m->barwin;
+
+        /* Loop through each client in the stacking order list */
 		for (c = m->stack; c; c = c->snext)
+
+			/* If we have a tiled client that is visible, then we place that below the
+			 * bar window. */
 			if (!c->isfloating && ISVISIBLE(c)) {
 				XConfigureWindow(dpy, c->win, CWSibling|CWStackMode, &wc);
+
+				/* Note that the sibling is changed from the bar window to the last
+				 * window that was changed. This makes it so that the order of the
+				 * windows are preserved, just that all the tiled windows are below
+				 * the bar window. For this reason we are looping through the stacking
+				 * order list (m->stack) rather than the client list. */
 				wc.sibling = c->win;
 			}
 	}
+
+	/* This flushes the output buffer and then waits until all requests have been
+	 * received and processed by the X server. */
 	XSync(dpy, False);
+
+	/* This seemingly benign line of code is actually very important. What this does is that
+	 * it checks the X event queue if there are any EnterNotify events waiting as a result
+	 * of the change in stacking order above and simply swallows (ignores) them. This avoids
+	 * situations where two overlapping windows begin to flicker back and forth due to competing
+	 * and continuously generated EnterNotify events. */
 	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 }
 

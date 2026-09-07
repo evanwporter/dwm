@@ -25,6 +25,31 @@ Test(move_node, moving_a_down_swaps_a_and_b)
     selmon = NULL;
 }
 
+Test(move_node, moving_client_then_removing_all_leaves_no_stale_nodes)
+{
+    Monitor monitor = {0};
+    Client a = {.mon = &monitor, .workspace = 1};
+    Client b = {.mon = &monitor, .workspace = 1};
+    Arg right = {.i = 3};
+
+    treenode_add(&a);
+    monitor.sel = &a;
+    treenode_add(&b);
+    selmon = &monitor;
+
+    treenode_move_node(&right);
+
+    cr_assert_null(workspace_roots[0]->client);
+    cr_assert_eq(workspace_roots[0]->a->client, &b);
+    cr_assert_eq(workspace_roots[0]->b->client, &a);
+    cr_assert_eq(a.node, workspace_roots[0]->b);
+
+    treenode_remove(&a);
+    treenode_remove(&b);
+    cr_assert_null(workspace_roots[0]);
+    selmon = NULL;
+}
+
 Test(move_node, moving_a_left_changes_to_side_by_side)
 {
     /* Initial:       Final:
