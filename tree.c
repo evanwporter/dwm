@@ -201,6 +201,7 @@ treenode_internal_add(Client *c, Client *focused)
 {
     TreeNode *focused_node, *node_a, *node_b;
 
+    // TODO: Might not be necessary
     if (!c || !c->mon || c->node)
         return;
 
@@ -259,8 +260,8 @@ navigate_tree(TreeNode *node, int dir)
     int is_vertical   = (dir == 1 || dir == 2); // Axis: 1 for V-splits, 0 for H-splits
     int coming_from_a = (dir == 1 || dir == 3); // DOWN and RIGHT require coming from 'a'
 
-    int perp_choices[64];
-    int perp_count = 0;
+    int choices[64];
+    int count = 0;
 
     TreeNode *curr = node;
     TreeNode *parent = node->parent;
@@ -277,8 +278,8 @@ navigate_tree(TreeNode *node, int dir)
             }
         } else {
             // Split is perpendicular: record position choice to preserve alignment
-            if (perp_count < 64)
-                perp_choices[perp_count++] = curr->is_A ? 1 : 0;
+            if (count < 64)
+                choices[count++] = curr->is_A ? 1 : 0;
         }
 
         curr = parent;
@@ -301,8 +302,8 @@ navigate_tree(TreeNode *node, int dir)
             
         } else {
             // Split is perpendicular: replay recorded LIFO choices
-            if (perp_count > 0) {
-                int went_a = perp_choices[--perp_count];
+            if (count > 0) {
+                int went_a = choices[--count];
                 if (went_a)
                     curr = curr->a ? curr->a : curr->b;
                 else
