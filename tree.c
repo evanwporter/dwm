@@ -333,6 +333,7 @@ treenode_move_node(const Arg *arg)
         /* Remove first: insertion replaces sel->node.  Removing afterward
          * would remove new leaf and leave old leaf pointing at sel. */
         Client *target_client = target->client;
+
         treenode_remove(sel);
         treenode_internal_add(sel, target_client);
         arrange(selmon);

@@ -6,6 +6,7 @@
 #include "dwm.h"
 #include "tree.h"
 #include <X11/X.h>
+#include <X11/Xutil.h>
 
 /* appearance */
 static const unsigned int borderpx       = 3;   /* border pixel of windows */
@@ -116,10 +117,10 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask,             XK_j,      key_shift_move,  {.i = 1 } },
 	{ MODKEY|ShiftMask,             XK_k,      key_shift_move,  {.i = 2 } },
 	{ MODKEY|ShiftMask,             XK_l,      key_shift_move,  {.i = 3 } },
-    { MODKEY|ShiftMask|ControlMask,  XK_h,      treenode_move_node, {.i = 0} },
-    { MODKEY|ShiftMask|ControlMask, XK_j, treenode_move_node, {.i = 1} },
-    { MODKEY|ShiftMask|ControlMask, XK_k, treenode_move_node, {.i = 2} },
-    { MODKEY|ShiftMask|ControlMask, XK_l, treenode_move_node, {.i = 3} },
+    { MODKEY|ShiftMask,             XK_Up,    treenode_move_node, {.i = 0} },
+    { MODKEY|ShiftMask,             XK_Down,  treenode_move_node, {.i = 1} },
+    { MODKEY|ShiftMask,             XK_Up,    treenode_move_node, {.i = 2} },
+    { MODKEY|ShiftMask,             XK_Right, treenode_move_node, {.i = 3} },
 	{ MODKEY,                       XK_i,      incnmaster,     {.i = +1 } },
 	{ MODKEY,                       XK_d,      incnmaster,     {.i = -1 } },
 	{ MODKEY,                       XK_Return, zoom,           {0} },
@@ -139,8 +140,8 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
 	{ MODKEY,                       XK_s,      show,           {0} },
 	{ MODKEY|ShiftMask,             XK_s,      showall,        {0} },
-	{ MODKEY|ControlMask,           XK_h,      hide,           {0} },
-	{ MODKEY|ControlMask,           XK_l,      spawn,          SHCMD("/run/wrappers/bin/slock") },
+	// { MODKEY|ControlMask,           XK_h,      hide,           {0} },
+	// { MODKEY|ControlMask,           XK_l,      spawn,          SHCMD("/run/wrappers/bin/slock") },
 
     // Audio Mute
     { 0,                            XF86XK_AudioMute,           spawn,          SHCMD("pactl set-sink-mute @DEFAULT_SINK@ toggle; pkill -RTMIN+1 dwmblocks") },
