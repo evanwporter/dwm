@@ -37,9 +37,10 @@
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
-#define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 #define WORKSPACEMASK           ((1 << LENGTH(workspaces)) - 1)
 #define WORKSPACEBIT(W)         (1U << ((W) - 1))
+#define PERWORKSPACE(M)         (perworkspaces[(M)->selected_workspaces[(M)->sel_ws] - 1])
+#define PERWS(M)                PERWORKSPACE(M)
 
 /// Check workspace bounds
 ///    1 <= W <= LENGTH(workspaces)
@@ -178,34 +179,7 @@ typedef struct {
 } Layout;
 
 struct Monitor {
-	char ltsymbol[16];
-
-    /// What percentage of the screen master gets
-	float mfact;
-
-	/* This represents the number of clients that are to be tiled in the master area. This has
-	 * no upper limit but cannot be less than 0. The default value is configured in the
-	 * configuration file and the value is adjusted via the incnmaster function. */
-    //  Default nmaster = 1:
-    // ┌───────────┬────┐
-    // │           │ C2 │
-    // │    C1     ├────┤
-    // │  (master) │ C3 │
-    // │           ├────┤
-    // │           │ C4 │
-    // └───────────┴────┘
-    //
-    // With nmaster = 2:
-    // ┌───────────┬────┐
-    // │    C1     │ C3 │
-    // │  (master) ├────┤
-    // ├───────────┤ C4 │
-    // │    C2     ├────┤
-    // │ (also     │ C5 │
-    // │  master)  │    │
-    // └───────────┴────┘
-	int nmaster;
-
+    /* This represents the monitor number, or the monitor index if you wish. */
 	int num;
 
 	/* The by variable defines the bar windows position on the y axis and this is set in the
@@ -262,15 +236,6 @@ struct Monitor {
 	 */
 	unsigned int seltags;
 
-	/* The sellt variable is either 0 or 1 and represents the currently selected layout. This
-	 * follows the same mechanism as seltags above giving patterns such a:
-	 *
-	 *    m->lt[m->sellt]
-	 *    selmon->lt[selmon->sellt]
-	 *    c->mon->lt[c->mon->sellt]
-	 */
-	unsigned int sellt;
-
 	/* This array holds the previously and currently viewed tags for the monitor, the index of
 	 * which is indicated by the seltags variable. */
 	unsigned int tagset[2];
@@ -291,12 +256,6 @@ struct Monitor {
     unsigned int selected_workspaces[2];
 
     int sel_ws;
-
-	/* Internal flag indicating whether the bar is shown or not. */
-	int showbar;
-
-	/* Internal flag indicating whether the bar is shown at the top or at the bottom. */
-	int topbar;
 
 	int hidsel;
 
@@ -320,9 +279,65 @@ struct Monitor {
 
 	/* This is the bar window which is used to draw the bar. Each monitor has their own bar. */
 	Window barwin;
-
-	const Layout *lt[2];
 };
+
+typedef struct Perworkspace {
+	/* This represents the number of clients that are to be tiled in the master area. This has
+	 * no upper limit but cannot be less than 0. The default value is configured in the
+	 * configuration file and the value is adjusted via the incnmaster function. */
+    //  Default nmaster = 1:
+    // ┌───────────┬────┐
+    // │           │ C2 │
+    // │    C1     ├────┤
+    // │  (master) │ C3 │
+    // │           ├────┤
+    // │           │ C4 │
+    // └───────────┴────┘
+    //
+    // With nmaster = 2:
+    // ┌───────────┬────┐
+    // │    C1     │ C3 │
+    // │  (master) ├────┤
+    // ├───────────┤ C4 │
+    // │    C2     ├────┤
+    // │ (also     │ C5 │
+    // │  master)  │    │
+    // └───────────┴────┘
+    /// Number of windows in master area
+	int nmaster;
+
+    /// What percentage of the screen master gets
+	float mfact;
+
+	/* The sellt variable is either 0 or 1 and represents the currently selected layout. This
+	 * follows the same mechanism as seltags above giving patterns such a:
+	 *
+	 *    m->lt[m->sellt]
+	 *    selmon->lt[selmon->sellt]
+	 *    c->mon->lt[c->mon->sellt]
+	 */
+	unsigned int sellt;
+
+	/* This array holds the previous and current layout for the monitor, the index of which is
+	 * indicated by the sellt variable. */
+	const Layout *lt[2];
+
+	/* This holds the layout symbol text, typically as defined in the layouts array. This is
+	 * used when drawing the layout symbol on the bar. The reason why this is defined for the
+	 * monitor rather than simply using the layout symbol as defined in the layouts array is
+	 * that some layouts, like the monocle layout for example, may alter the layout symbol
+	 * depending on how many clients are present. */
+	char ltsymbol[16];
+
+	/* Internal flag indicating whether the bar is shown or not. */
+	int showbar;
+
+	/* Internal flag indicating whether the bar is shown at the top or at the bottom. */
+	int topbar;
+
+    /// The tag root tree node 
+    TreeNode* root;
+} Perworkspace;
 
 typedef struct {
 	const char *class;
@@ -495,6 +510,6 @@ extern Window root, wmcheckwin;
 
 extern xcb_connection_t *xcon;
 
-extern TreeNode *workspace_roots[];
+extern Perworkspace *perworkspaces[];
 
 #endif /* DWM_H */

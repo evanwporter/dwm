@@ -22,7 +22,7 @@ setup_stacked_pair(Monitor *monitor, Client *a_client, Client *b_client,
     b_client->mon = monitor;
     b_client->node = b;
 
-    workspace_roots[0] = root;
+    perworkspaces[0]->root = root;
     monitor->sel = a_client;
     selmon = monitor;
 }
@@ -59,7 +59,7 @@ setup_nested_pair(Monitor *monitor, Client *a_client, Client *ba_client,
     bb_client->mon = monitor;
     bb_client->node = bb;
 
-    workspace_roots[0] = root;
+    perworkspaces[0]->root = root;
     monitor->sel = ba_client;
     selmon = monitor;
 }
@@ -91,7 +91,7 @@ setup_complex_tree(ComplexTree *tree)
     tree->aaa_client.node = &tree->aaa; tree->aab_client.node = &tree->aab; tree->ab_client.node = &tree->ab;
     tree->baa_client.node = &tree->baa; tree->bab_client.node = &tree->bab; tree->bb_client.node = &tree->bb;
 
-    workspace_roots[0] = &tree->root;
+    perworkspaces[0]->root = &tree->root;
     tree->monitor.sel = &tree->baa_client;
     selmon = &tree->monitor;
 }

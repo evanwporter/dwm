@@ -42,7 +42,7 @@ Test(auto_add, inserts_next_to_the_shallowest_leaf_not_the_focused_client)
     ba_client.node = &ba;
     bb_client.node = &bb;
     monitor.sel = &ba_client;
-    workspace_roots[0] = &root;
+    perworkspaces[0]->root = &root;
 
     treenode_auto_add(&new_client);
 
@@ -55,5 +55,5 @@ Test(auto_add, inserts_next_to_the_shallowest_leaf_not_the_focused_client)
 
     free(a.a);
     free(a.b);
-    workspace_roots[0] = NULL;
+    perworkspaces[0]->root = NULL;
 }
