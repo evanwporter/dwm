@@ -5,7 +5,7 @@
 #include "config.h"
 
 static void
-tree_recurse(TreeNode *node, int x, int y, int w, int h, int bw)
+tree_recurse(const TreeNode *node, int x, int y, int w, int h, int bw)
 {
     assert(node->client || (node->a && node->b));
 
@@ -33,36 +33,30 @@ tree_recurse(TreeNode *node, int x, int y, int w, int h, int bw)
     }
 }
 
+/// Starting from the root node recusively generate the tree layout based upon
+/// a binary space partition
 void
 tree(Monitor *m) 
 {
-    // If the root tree node of the current monitor is null for whatever reason
-    // then we just provide the tiling layout
-    if (!workspace_roots[m->selected_workspaces[m->sel_ws] - 1]) {
+    const TreeNode *root = workspace_roots[m->selected_workspaces[m->sel_ws] - 1];
+
+    /* Tree may be absent while current workspace still has tiled clients. */
+    if (!root) {
         tile(m);
         return;
     }
 
-    int n, bw;
-    Client *c;
+    /// Set the border width to 0 if the root node has a 
+    /// client, since this means there is only one node
+    /// in the tree.
+    const int bw = root->client ? 0 : borderpx;
 
-	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
-
-	if (n == 0)
-		return;
-    if (n == 1)
-		bw = 0;
-    else 
-        bw = borderpx;
-
-    TreeNode *node = workspace_roots[m->selected_workspaces[m->sel_ws] - 1];
-
-    // pass along the window boundaries
-    tree_recurse(node, m->mx, m->my, m->ww, m->wh, bw);
+    // Pass along the window boundaries
+    tree_recurse(root, m->mx, m->my, m->ww, m->wh, bw);
 }
 
 static void
-treemove_recurse(TreeNode *node, const Arg *arg, int op, int child_is_A)
+treemove_recurse(TreeNode *node, const Arg *arg, int child_is_A)
 {
     if (!node)
         return;
@@ -74,18 +68,21 @@ treemove_recurse(TreeNode *node, const Arg *arg, int op, int child_is_A)
 
     int stacked = node->stacked;
 
+    /// Do nothing
     int nop = (!stacked && ((left && child_is_A) || (right && !child_is_A)))
         || (stacked && ((up && child_is_A) || (down && !child_is_A)));
+
+    /// Flip the stacked bit
     int flip = (stacked && (left || right)) || (!stacked && (up || down));
+
+    /// Swap a and b nodes
     int swap = (right && child_is_A) || (down && child_is_A) || (up && !child_is_A) || (left && !child_is_A);
 
-    if (nop) {
-        treemove_recurse(node->parent, arg, 0, node->is_A);
-    }
+    if (nop)
+        treemove_recurse(node->parent, arg, node->is_A);
 
-    if (flip) {
+    if (flip)
         node->stacked = !node->stacked;
-    }
 
     if (swap) {
         TreeNode *tmp = node->a;
@@ -93,7 +90,6 @@ treemove_recurse(TreeNode *node, const Arg *arg, int op, int child_is_A)
         node->b = tmp;
         node->a->is_A = 1;
         node->b->is_A = 0;
-        return;
     }
 }
 
@@ -103,21 +99,22 @@ treenode_move(const Arg *arg)
     /// Currenly focused client
     Client *sel = selmon->sel;
 
+    /// No client is selected; ie no client is being displayed
+    /// TODO: remove the sel->node check once I can ascertain 
+    ///       that no client can be created without a node
     if (!sel || !sel->node)
         return;
 
     TreeNode *node = sel->node;
 
-    treemove_recurse(node->parent, arg, 0, node->is_A);
+    treemove_recurse(node->parent, arg, node->is_A);
 
     arrange(selmon);
 }
 
-
 void
 treenode_remove(Client* c) 
 {   
-
     if (!c)
         return;
 
@@ -127,7 +124,7 @@ treenode_remove(Client* c)
 
     TreeNode *sibling, *parent, *grandparent;
 
-    if (!node) 
+    if (!node)
         return;
 
     // make sure node doesn't have any children
@@ -188,7 +185,10 @@ treenode_remove(Client* c)
         sibling->parent = NULL;
     }
 
+    /// Get rid of the parent since the sibling is the new parent
     free(parent);
+
+    /// Get rid of the node obviously since we are removing the client
     free(node);
 
     // set the pointer to the node to null
@@ -200,10 +200,6 @@ static void
 treenode_internal_add(Client *c, Client *focused)
 {
     TreeNode *focused_node, *node_a, *node_b;
-
-    // TODO: Might not be necessary
-    if (!c || !c->mon || c->node)
-        return;
 
     if (!workspace_roots[c->workspace - 1] || !focused || !focused->node) {
         // Early Exit if there is no root node
@@ -345,6 +341,7 @@ closest_leaf(int workspace)
 
     queue[0] = workspace_roots[workspace - 1];
 
+    // BFS
     while (front < rear) { // check if the queue is empty
         TreeNode *current = queue[front];
         front++;
@@ -373,7 +370,6 @@ closest_leaf(int workspace)
 void
 treenode_auto_add(Client *c)
 {
-
     if (!c || !c->mon || c->node)
         return;
 
