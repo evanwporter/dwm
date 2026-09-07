@@ -2,7 +2,18 @@
 #include "../config.h"
 
 Monitor *selmon;
-TreeNode *workspace_roots[LENGTH(workspaces)];
+static Perworkspace perworkspace_storage[LENGTH(workspaces)];
+Perworkspace *perworkspaces[LENGTH(workspaces)] = {
+    &perworkspace_storage[0],
+    &perworkspace_storage[1],
+    &perworkspace_storage[2],
+    &perworkspace_storage[3],
+    &perworkspace_storage[4],
+    &perworkspace_storage[5],
+    &perworkspace_storage[6],
+    &perworkspace_storage[7],
+    &perworkspace_storage[8],
+};
 
 void
 focus(Client *c)

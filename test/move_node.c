@@ -32,21 +32,21 @@ Test(move_node, moving_client_then_removing_all_leaves_no_stale_nodes)
     Client b = {.mon = &monitor, .workspace = 1};
     Arg right = {.i = 3};
 
-    treenode_add(&a);
+    tree_add_client(&a);
     monitor.sel = &a;
-    treenode_add(&b);
+    tree_add_client(&b);
     selmon = &monitor;
 
     treenode_move_node(&right);
 
-    cr_assert_null(workspace_roots[0]->client);
-    cr_assert_eq(workspace_roots[0]->a->client, &b);
-    cr_assert_eq(workspace_roots[0]->b->client, &a);
-    cr_assert_eq(a.node, workspace_roots[0]->b);
+    cr_assert_null(perworkspaces[0]->root->client);
+    cr_assert_eq(perworkspaces[0]->root->a->client, &b);
+    cr_assert_eq(perworkspaces[0]->root->b->client, &a);
+    cr_assert_eq(a.node, perworkspaces[0]->root->b);
 
-    treenode_remove(&a);
-    treenode_remove(&b);
-    cr_assert_null(workspace_roots[0]);
+    tree_remove_client(&a);
+    tree_remove_client(&b);
+    cr_assert_null(perworkspaces[0]->root);
     selmon = NULL;
 }
 

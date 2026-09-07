@@ -38,7 +38,7 @@ tree_recurse(const TreeNode *node, int x, int y, int w, int h, int bw)
 void
 tree(Monitor *m) 
 {
-    const TreeNode *root = workspace_roots[m->selected_workspaces[m->sel_ws] - 1];
+    const TreeNode *root = PERWS(m)->root;
 
     /* Tree may be absent while current workspace still has tiled clients. */
     if (!root) {
@@ -133,10 +133,9 @@ treenode_remove(Client* c)
     // make sure it points to the same client
     assert(node->client == c);
 
-    if (workspace_roots[c->workspace - 1] == node) {
+    if (perworkspaces[c->workspace - 1]->root == node) {
         // node is the root node within the monitor
-        
-        workspace_roots[c->workspace - 1] = NULL;
+        perworkspaces[c->workspace - 1]->root = NULL;
         c->node = NULL;
 
         free(node);
@@ -176,7 +175,7 @@ treenode_remove(Client* c)
         sibling->parent = grandparent;
     } else {
         // parent is the root node, thus the new root node becomes sibling
-        workspace_roots[c->workspace - 1] = sibling;
+        perworkspaces[c->workspace - 1]->root = sibling;
 
         // TODO: This may not be necessary
         sibling->is_A = 1;
@@ -201,11 +200,11 @@ treenode_internal_add(Client *c, Client *focused)
 {
     TreeNode *focused_node, *node_a, *node_b;
 
-    if (!workspace_roots[c->workspace - 1] || !focused || !focused->node) {
+    if (!perworkspaces[c->workspace - 1]->root || !focused || !focused->node) {
         // Early Exit if there is no root node
         c->node = ecalloc(1, sizeof(*c->node));
         c->node->client = c;
-        workspace_roots[c->workspace - 1] = c->node;
+        perworkspaces[c->workspace - 1]->root = c->node;
         return;
     }
 
@@ -244,7 +243,7 @@ treenode_add(Client *c)
         return;
 
     focused = c->mon->sel;
-    if (!workspace_roots[c->workspace - 1])
+    if (!perworkspaces[c->workspace - 1]->root)
         treenode_internal_add(c, NULL);
     else if (focused && focused->workspace == c->workspace && focused->node)
         treenode_internal_add(c, focused);
@@ -358,14 +357,14 @@ treenode_navigate(const Arg *arg)
 static TreeNode*
 closest_leaf(int workspace)
 {
-    if (!workspace_roots[workspace - 1])
+    if (!perworkspaces[workspace - 1]->root)
         return NULL;
 
     TreeNode *queue[64];
     int front = 0;
     int rear = 1;
 
-    queue[0] = workspace_roots[workspace - 1];
+    queue[0] = perworkspaces[workspace - 1]->root;
 
     // BFS
     while (front < rear) { // check if the queue is empty

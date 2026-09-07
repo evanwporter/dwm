@@ -7,7 +7,7 @@ intree(void)
 {
     const Layout *layout;
 
-    if (!selmon || !(layout = selmon->lt[selmon->sellt]))
+    if (!selmon || !(layout = PERWS(selmon)->lt[PERWS(selmon)->sellt]))
         return 0;
 
     return layout->arrange == tree || !strcmp(layout->symbol, "[T]");

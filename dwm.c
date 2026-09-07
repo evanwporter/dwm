@@ -22,7 +22,8 @@
  */
 
 #include "tree.h"
-#include <errno.h>
+#include "dwm.h"
+
 #include <locale.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -93,7 +94,7 @@ Drw *drw;
 Monitor *mons, *selmon;
 Window root, wmcheckwin;
 xcb_connection_t *xcon;
-TreeNode *workspace_roots[LENGTH(workspaces)];
+Perworkspace *perworkspaces[LENGTH(workspaces)];
 
 /* function implementations */
 
@@ -265,7 +266,7 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int *bw, int interact)
 		*h = bh;
 	if (*w < bh)
 		*w = bh;
-	if (resizehints || c->isfloating || !c->mon->lt[c->mon->sellt]->arrange) {
+	if (resizehints || c->isfloating || !PERWS(c->mon)->lt[PERWS(c->mon)->sellt]->arrange) {
 		if (!c->hintsvalid)
 			updatesizehints(c);
 		/* see last two sentences in ICCCM 4.1.2.3 */
@@ -324,22 +325,15 @@ arrange(Monitor *m)
 
 /* This sets / updates the layout symbol for the monitor and calls the layout arrange function
  * (tile or monocle) to resize and reposition client windows.
- *
- * @called_from arrange to handle layout arrangements
- * @calls monocle to resize and reposition client windows
- * @calls tile to resize and reposition client windows
- *
- * Internal call stack:
- *    ~ -> arrange -> arrangemon
  */
 void
 arrangemon(Monitor *m)
 {
     Client *c;
 
-	strncpy(m->ltsymbol, m->lt[m->sellt]->symbol, sizeof m->ltsymbol);
-	if (m->lt[m->sellt]->arrange)
-		m->lt[m->sellt]->arrange(m);
+	strncpy(PERWS(m)->ltsymbol, PERWS(m)->lt[PERWS(m)->sellt]->symbol, sizeof PERWS(m)->ltsymbol);
+	if (PERWS(m)->lt[PERWS(m)->sellt]->arrange)
+		PERWS(m)->lt[PERWS(m)->sellt]->arrange(m);
 	else
 		/* <>< case; rather than providing an arrange function and upsetting other logic that tests for its presence, simply add borders here */
 		for (c = m->clients; c; c = c->next)
@@ -437,7 +431,7 @@ buttonpress(XEvent *e)
 		if (i < LENGTH(workspaces)) {
 			click = ClkTagBar;
 			arg.ui = i + 1;
-		} else if (ev->x < x + TEXTW(selmon->ltsymbol))
+		} else if (ev->x < x + TEXTW(PERWS(selmon)->ltsymbol))
 			click = ClkLtSymbol;
 		else if (ev->x > selmon->ww - (int)TEXTW(stext) + lrpad - 2 - getsystraywidth()) {
 			click = ClkStatusText;
@@ -449,7 +443,7 @@ buttonpress(XEvent *e)
 			}
 		}
 		else {
-			x += TEXTW(selmon->ltsymbol);
+			x += TEXTW(PERWS(selmon)->ltsymbol);
 			c = m->clients;
 			if (c && m->bt > 0) {
 				do {
@@ -484,20 +478,52 @@ checkotherwm(void)
 	XSync(dpy, False);
 }
 
+/* This function handles all cleanup that is needed before exiting which involves:
+ *    - unmanaging all windows that are managed by the window manager
+ *    - releasing all keybindings
+ *    - tearing down all monitors
+ *    - freeing cursors
+ *    - freeing colour schemes and their colours
+ *    - destroying the supporting window
+ *    - free the drawable
+ *    - reverting input focus and clearing the _NET_ACTIVE_WINDOW property of the root window
+ */
 void
 cleanup(void)
 {
+	/* This sets up an argument that will select all tags */
 	Arg a = {.ui = ~0};
 	Layout foo = { "", NULL };
 	Monitor *m;
 	size_t i;
 
+	/* This calls view with the argument that selects and views all tags. This is what makes
+	 * dwm briefly show all client windows for a fraction of a second when exiting.
+	 *
+	 * The purpose of this may not be obvious, but it has to do with how dwm hides client
+	 * windows by moving them to a negative x position. In principle the X session could be
+	 * taken over by another window manager, which would cause some issues and/or confusion
+	 * given that some windows will be in an unreachable location.
+	 *
+	 * As such the view call here makes sure to pull all clients into view before dwm exits.
+	 */
 	view(&a);
-	selmon->lt[selmon->sellt] = &foo;
+
+	/* This sets the selected monitor's layout to the dummy floating layout. The purpose of
+	 * this is presumably to negate a flood of arrange calls when calling unmanage for each
+	 * client. If that is the case then it would make more sense having this inside the for
+	 * loop so that this applies to all monitors when exiting, not just the selected one. */
+	PERWS(selmon)->lt[PERWS(selmon)->sellt] = &foo;
+
+	/* Loop through each monitor and unmanage all clients until the stack is exhausted */
 	for (m = mons; m; m = m->next)
 		while (m->stack)
 			unmanage(m->stack, 0);
+
+	/* This releases any keybindings (grabbed keys) */
 	XUngrabKey(dpy, AnyKey, AnyModifier, root);
+
+    /* Loop through and tear down all monitors */
 	while (mons)
 		cleanupmon(mons);
 
@@ -507,15 +533,35 @@ cleanup(void)
 		free(systray);
 	}
 
+	/* Loop through and free each cursor */
     for (i = 0; i < CurLast; i++)
 		drw_cur_free(drw, cursor[i]);
+
+    /* Loop through and free each colour scheme */
 	for (i = 0; i < LENGTH(colors) + 1; i++)
 		drw_scm_free(drw, scheme[i], 3);
-	free(scheme);
+
+    for (i = 0; i < LENGTH(workspaces); i++)
+        free(perworkspaces[i]);
+
+	/* Free the memory used for the scheme struct as well */
+    free(scheme);
+
+	/* Destroy the supporting window, refer to the setup function for more details on this */
 	XDestroyWindow(dpy, wmcheckwin);
+
+	/* Free the drawable structure */
 	drw_free(drw);
+
+	/* This flushes the output buffer and then waits until all requests have been
+	 * received and processed by the X server. */
 	XSync(dpy, False);
+
+	/* This reverts the input focus back to the root window */
 	XSetInputFocus(dpy, PointerRoot, RevertToPointerRoot, CurrentTime);
+
+	/* This deletes the _NET_ACTIVE_WINDOW property of the root window as the window manager
+	 * no longer manages any windows. */
 	XDeleteProperty(dpy, root, netatom[NetActiveWindow]);
 }
 
@@ -661,7 +707,7 @@ configurerequest(XEvent *e)
 	if ((c = wintoclient(ev->window))) {
 		if (ev->value_mask & CWBorderWidth)
 			c->bw = ev->border_width;
-		else if (c->isfloating || !selmon->lt[selmon->sellt]->arrange) {
+		else if (c->isfloating || !PERWS(selmon)->lt[PERWS(selmon)->sellt]->arrange) {
 			m = c->mon;
 			if (ev->value_mask & CWX) {
 				c->oldx = c->x;
@@ -713,18 +759,8 @@ createmon(void)
 	/* This sets the current and previous tagset to 1, as in the first tag is selected by
 	 * default. */
 	m->selected_workspaces[0] = m->selected_workspaces[1] = 1;
-
-	/* We set the default master / stack factor, number of clients in the master area, whether
-	 * to show the bar by default and its location based on the corresponding variables set in
-	 * the configuration file. */
-	m->mfact = mfact;
-	m->nmaster = nmaster;
-	m->showbar = showbar;
-	m->topbar = topbar;
-
-	m->lt[0] = &layouts[0];
-	m->lt[1] = &layouts[1 % LENGTH(layouts)];
-	strncpy(m->ltsymbol, layouts[0].symbol, sizeof m->ltsymbol);
+    
+	/* Return the newly created monitor. */
 	return m;
 }
 
@@ -906,7 +942,7 @@ drawbar(Monitor *m)
 	Client *c;
 
 	// If the bar is not shown then don't spend any effort drawing the bar.
-    if (!m->showbar)
+    if (!PERWS(m)->showbar)
 		return;
 
 	// If the system tray is enabled, belongs on this monitor, and is positioned
@@ -955,9 +991,9 @@ drawbar(Monitor *m)
 		drw_text(drw, x, 0, w, bh, lrpad / 2, workspaces[i], urg & (1U << i));
 		x += w;
 	}
-	w = TEXTW(m->ltsymbol);
+	w = TEXTW(PERWS(m)->ltsymbol);
 	drw_setscheme(drw, scheme[SchemeNorm]);
-	x = drw_text(drw, x, 0, w, bh, lrpad / 2, m->ltsymbol, 0);
+	x = drw_text(drw, x, 0, w, bh, lrpad / 2, PERWS(m)->ltsymbol, 0);
 
 	if ((w = m->ww - tw - stw - x) > bh) {
 		if (n > 0) {
@@ -1309,10 +1345,17 @@ hidewin(Client *c)
 	XUngrabServer(dpy);
 }
 
+/// User function to increment or decrement the number of client windows in the master area.
 void
 incnmaster(const Arg *arg)
 {
-	selmon->nmaster = MAX(selmon->nmaster + arg->i, 0);
+	/* This adjusts the number of master (nmaster) clients with the given argument. The
+	 * MAX(..., 0) is just a safeguard to prevent the nmaster value from becoming negative. */
+	PERWS(selmon)->nmaster = MAX(PERWS(selmon)->nmaster + arg->i, 0);
+    
+    /* A full arrange to resize and reposition clients accordingly. In principle this could have
+	 * been an arrangemon call as we do not need to bring new clients into view, apply a restack
+	 * or to update the bar. */
 	arrange(selmon);
 }
 
@@ -1564,7 +1607,7 @@ monocle(Monitor *m)
     // Updates the mode symbol in the status bar (e.g [3])
     // with the number of windows / pages in the current tag
 	if (n > 0) /* override layout symbol */
-		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
+		snprintf(PERWS(m)->ltsymbol, sizeof PERWS(m)->ltsymbol, "[%d]", n);
 
 	/* This just loops through all tiled clients and resizes them to take up the entire window
 	 * area. Note that this does not have anything to do with which window is shown on top, that
@@ -1638,10 +1681,10 @@ movemouse(const Arg *arg)
 				ny = selmon->wy;
 			else if (abs((selmon->wy + selmon->wh) - (ny + HEIGHT(c))) < snap)
 				ny = selmon->wy + selmon->wh - HEIGHT(c);
-			if (!c->isfloating && selmon->lt[selmon->sellt]->arrange
+			if (!c->isfloating && PERWS(selmon)->lt[PERWS(selmon)->sellt]->arrange
 			&& (abs(nx - c->x) > snap || abs(ny - c->y) > snap))
 				togglefloating(NULL);
-			if (!selmon->lt[selmon->sellt]->arrange || c->isfloating)
+			if (!PERWS(selmon)->lt[PERWS(selmon)->sellt]->arrange || c->isfloating)
 				resize(c, nx, ny, c->w, c->h, c->bw, 1);
 			break;
 		}
@@ -1872,11 +1915,11 @@ resizemouse(const Arg *arg)
 			if (c->mon->wx + nw >= selmon->wx && c->mon->wx + nw <= selmon->wx + selmon->ww
 			&& c->mon->wy + nh >= selmon->wy && c->mon->wy + nh <= selmon->wy + selmon->wh)
 			{
-				if (!c->isfloating && selmon->lt[selmon->sellt]->arrange
+				if (!c->isfloating && PERWS(selmon)->lt[PERWS(selmon)->sellt]->arrange
 				&& (abs(nw - c->w) > snap || abs(nh - c->h) > snap))
 					togglefloating(NULL);
 			}
-			if (!selmon->lt[selmon->sellt]->arrange || c->isfloating)
+			if (!PERWS(selmon)->lt[PERWS(selmon)->sellt]->arrange || c->isfloating)
 				resize(c, c->x, c->y, nw, nh, c->bw, 1);
 			break;
 		}
@@ -1931,12 +1974,12 @@ restack(Monitor *m)
 
 	/* If the selected client is floating, or if we are using floating layout, then place the
 	 * selected window above all other windows. */
-	if (m->sel->isfloating || !m->lt[m->sellt]->arrange)
+	if (m->sel->isfloating || !PERWS(m)->lt[PERWS(m)->sellt]->arrange)
 		XRaiseWindow(dpy, m->sel->win);
 
 	/* If we are not using floating layout then we place all tiled clients below the bar
 	 * window (in terms of how windows stack on top of each other). */
-	if (m->lt[m->sellt]->arrange) {
+	if (PERWS(m)->lt[PERWS(m)->sellt]->arrange) {
 		wc.stack_mode = Below;
 		wc.sibling = m->barwin;
 
@@ -2160,32 +2203,120 @@ setlayout(const Arg *arg)
 	 *    - an argument with value of 0 was passed to setlayout or
 	 *    - if the new layout is different to the previous layout
 	 */
-	if (!arg || !arg->v || arg->v != selmon->lt[selmon->sellt])
-		selmon->sellt ^= 1;
+	if (!arg || !arg->v || arg->v != PERWS(selmon)->lt[PERWS(selmon)->sellt])
+		PERWS(selmon)->sellt ^= 1;
+
+	/* Awkwardly this function expects a valid pointer to a layout to be passed as the
+	 * argument, e.g.
+	 *
+	 *    { MODKEY,                       XK_t,      setlayout,      {.v = &layouts[0]} },
+	 *    { MODKEY,                       XK_f,      setlayout,      {.v = &layouts[1]} },
+	 *    { MODKEY,                       XK_m,      setlayout,      {.v = &layouts[2]} },
+	 *
+	 * The reason for this, as opposed to just passing 0, 1, 2 as the argument, appears to be
+	 * to be able to just revert to the previous layout by passing 0.
+	 *
+	 *    { MODKEY,                       XK_space,  setlayout,      {0} },
+	 *
+	 * The moving to the previous layout is triggered by the !arg->v check above resulting in
+	 * the selmon->sellt variable being toggled, while the below setting of the layout only
+	 * happens if we have a value for arg->v (which we won't have when passing 0).
+	 *
+	 * Passing an invalid pointer as the layout reference will result in dwm crashing.
+	 */
 	if (arg && arg->v)
-		selmon->lt[selmon->sellt] = (Layout *)arg->v;
-	strncpy(selmon->ltsymbol, selmon->lt[selmon->sellt]->symbol, sizeof selmon->ltsymbol);
+		/* This sets the selected montor's selected layout to the layout provided as the
+		 * argument. */
+		PERWS(selmon)->lt[PERWS(selmon)->sellt] = (Layout *)arg->v;
+
+	/* Copy the layout symbol of the given layout into the monitor's layout symbol. This is
+	 * later used when drawing the layout symbol on the bar. */
+	strncpy(PERWS(selmon)->ltsymbol, PERWS(selmon)->lt[PERWS(selmon)->sellt]->symbol, sizeof PERWS(selmon)->ltsymbol);
+
+	/* If there are visible clients on the current monitor then we apply a full arrange to make
+	 * clients resize and reposition according to the new layout. */
 	if (selmon->sel)
 		arrange(selmon);
+
+	/* If there are no visible clients, however, then we do not need to arrange any clients.
+	 * We just update the bar to show the new layout symbol. */
 	else
 		drawbar(selmon);
+
+	/* As an implementation detail for the above - we might as well have just called arrange
+	 * rather than checking whether we have any selections or not. The arrange call would have
+	 * called arrangemon which would have copied the layout symbol into the monitor and it
+	 * would also have called restack which would have called drawbar. */
 }
 
+/* User function to set or adjust the master / stack factor (or ratio if you wish) for the
+ * selected monitor.
+ *
+ * The mfact is a floating value with:
+ *    - a minimum value of 0.05 (5% of the window area) and
+ *    - a maximum value of 0.95 (95% of the window area)
+ *
+ * As per the default configuration this factor is adjusted with increments or decrements of 0.05
+ * using the MOD+l and MOD+h keybindings.
+ *
+ * The default mfact value is 0.55 giving the master area slightly more space than the stack area.
+ *
+ * Optionally the user can pass a value greater than 1.0 to set an absolute value, in which case
+ * 1.0 will be subtracted from the given value. For example the following keybinding would
+ * explicitly set the mfact value to 0.5:
+ *
+ *     { MODKEY,                       XK_u,      setmfact,       {.f = 1.50} },
+ *
+ * When setting the mfact value absolutely the value given (less the subtracted 1.0) must fall
+ * within the minimum and maximum boundaries for the master / stack factor - otherwise the value
+ * will simply be ignored.
+ */
 /* arg > 1.0 will set mfact absolutely */
 void
 setmfact(const Arg *arg)
 {
 	float f;
 
-	if (!arg || !selmon->lt[selmon->sellt]->arrange)
+	/* If the selected layout for the selected monitor is floating layout (as indicated by
+	 * having a NULL arrange function as defined in the layouts array), or if the function is
+	 * called without an argument, then we do nothing. */
+	if (!arg || !PERWS(selmon)->lt[PERWS(selmon)->sellt]->arrange)
 		return;
-	f = arg->f < 1.0 ? arg->f + selmon->mfact : arg->f - 1.0;
+
+	/* If the given float argument is less than 1.0 then make a relative adjustment of the mfact
+	 * value, otherwise set the mfact value absolutely. */
+	f = arg->f < 1.0 ? arg->f + PERWS(selmon)->mfact : arg->f - 1.0;
+
+	/* Check that the next factor value is within the bounds of the minimum of 0.5 and the
+	 * maximum of 0.95. If it is not then we bail out here */
 	if (f < 0.05 || f > 0.95)
 		return;
-	selmon->mfact = f;
+
+	/* Set the master / stack factor to the new value */
+	PERWS(selmon)->mfact = f;
+
+	/* This makes a call to arrange so that the tiled windows are resized and repositioned
+	 * following the change to the master / stack factor. In principle this could have been a
+	 * call to arrangemon(selmon) as all that is needed is for the clients to be tiled again.
+	 *
+	 * The call to arrange will result in subsequent calls to showhide, arrangemon, restack and
+	 * drawbar to redraw the bar. While not strictly necessary in this case the performance
+	 * overhead is negligible and arrange is a catch all that can prevent obscure issues.
+	 */
 	arrange(selmon);
 }
 
+/* The setup call will initialise everything that we need for operational purposes.
+ *
+ * This involves:
+ *    - setting up monitors
+ *    - loading fonts
+ *    - creating colours for the colour schemes
+ *    - creating cursors
+ *    - creating the bars
+ *    - setting window manager hints
+ *    - telling the X server what kind of events the window manager is interested in
+ */
 void
 setup(void)
 {
@@ -2194,37 +2325,189 @@ setup(void)
 	Atom utf8string;
 	struct sigaction sa;
 
-	/* do not transform children into zombies when they terminate */
+	/* Do not transform children into zombies when they terminate. */
+
+	/* The sigemptyset function initialises an empty signal set; the return value indicating
+	 * success or failure is ignored. */
 	sigemptyset(&sa.sa_mask);
+
+	/* This sets the signal action flags that we want:
+	 *
+	 * SA_NOCLDSTOP - The default behaviour is that whenever a process dies or stops, or when
+	 *                a stopped child process continues execution, the kernel posts the SIGCHLD
+	 *                signal to the parent process. The SA_NOCLDSTOP flag means that no SIGCHLD
+	 *                will occur when a child process stops or resumes, i.e. we will only
+	 *                receive a SIGCHLD when the child process dies (terminates).
+	 * SA_NOCLDWAIT - This flags means that in the case when a SIGCHLD is received then do not
+	 *                transform the child process into a zombie process.
+	 * SA_RESTART   - It is possible for a signal to arrive and be handled while a primitive I/O
+	 *                operation such as open or read is waiting on an I/O device to respond. The
+	 *                POSIX way of handling this scenario is to make the primitive fail straight
+	 *                away with the EINTR error code. This means that POSIX applications that use
+	 *                signal handlers must check for EINTR errors after calls to library functions
+	 *                that can return it, and forgetting to check this is a common source of error.
+	 *                BSD on the other hand avoids EINTR entirely by providing a more convenient
+	 *                approach: to restart the interrupted primitive rather than making it fail.
+	 *                Using this approach one do not have to be concerned about checking for EINTR
+	 *                errors. The SA_RESTART flag tells the signal action handler to behave like
+	 *                BSD does by making certain system calls restartable across signals.
+	 */
 	sa.sa_flags = SA_NOCLDSTOP | SA_NOCLDWAIT | SA_RESTART;
+
+	/* This will set the signal handler and SIG_IGN will simply ignore any signals and we only
+	 * expect the SIGCHLD signal to be received when a child process dies. */
 	sa.sa_handler = SIG_IGN;
+
+	/* This sets our desired action when a SIGCHLD signal is received. */
 	sigaction(SIGCHLD, &sa, NULL);
 
-	/* clean up any zombies (inherited from .xinitrc etc) immediately */
+	/* Clean up any zombies (inherited from .xinitrc etc) immediately. The need for this may not
+	 * be immediately obvious, but for example when the .xinitrc script runs it may spawn other
+	 * processes. Typically at the end the exec command will be used, which results in the
+	 * process itself to be replaced with whatever is being executed. Consider the following
+	 * scenario:
+	 *
+	 *    sleep 10 &
+	 *    exec dwm
+	 *
+	 * Now let's say that this is being evaluated with a PID 1111. The script will run the command
+	 * of sleep 10 as a child process running in the background (e.g. PID 3291 with parent process
+	 * 1111). Then exec dwm will replace the process evaluating .xinitrc and start executing as
+	 * dwm (i.e. PID 1111 is now executing dwm). The result of this is that the sleep is now
+	 * (still) a child process of dwm. When that child process exists after the 10 seconds have
+	 * elapsed it will result in a SIGCHLD and it will be dealt with by the sigaction handler as
+	 * defined above.
+	 *
+	 * What's with the waitpid then? Let's consider this other scenario:
+	 *
+	 *    cat &
+	 *    exec dwm
+	 *
+	 * Here the command of cat is run as a child process (e.g. PID 5183 with parent process 1111).
+	 * As before the exec will replace the current process and start executing dwm. The cat process
+	 * will have died before the sigaction handler was set up before so it will just end up as a
+	 * defunct zombie process waiting to terminate. The waitpid here will find and deal with (i.e.
+	 * ignore) any child processes that are waiting to terminate thus avoiding zombie processes.
+	 *
+	 * The function signature is:
+	 *
+	 *    waitpid (pid_t pid, int *status-ptr, int options)
+	 *
+	 * We pass the pid of -1 to say that we are interested in any process (as opposed to getting
+	 * information on a particular process). This could also have been set to WAIT_ANY.
+	 *
+	 * We pass NULL for the status pointer as we do not care about looking up status information
+	 * for child processes.
+	 *
+	 * For the options we pass the WNOHANG flag which just means that the function should return
+	 * immediately instead of waiting in the event that there are no child processes found.
+	 *
+	 * The outer while is in case there are more than one zombie process waiting to terminate.
+	 */
 	while (waitpid(-1, NULL, WNOHANG) > 0);
 
 	signal(SIGHUP, sighup);
 	signal(SIGTERM, sigterm);
 
-	/* init screen */
+	/* Initialise the screen.
+	 *
+	 * The DefaultScreen macro returns the default screen number. The screen number is used
+	 * to retrieve the height and width of the screen as well as the root window.
+	 *
+	 * The screen number is also used to find the default depth and visual when creating the
+	 * bar window(s).
+	 */
 	screen = DefaultScreen(dpy);
 	sw = DisplayWidth(dpy, screen);
 	sh = DisplayHeight(dpy, screen);
+
+	/* The root window is the window at the top of the window hierarchy and it covers each of
+	 * the display screens. If you set a background wallpaper then those graphics are drawn on
+	 * the root window. The root window plays an important role in the window manager as we
+	 * refer to it when creating windows, when scanning for windows, when finding the mouse
+	 * coordinates, when grabbing key and button presses and more. A window manager also
+	 * communicates its capabilities and support to other windows by setting properties on the
+	 * root window. */
 	root = RootWindow(dpy, screen);
+
+	/* This sets up the drawable (drw) which is an internal structure defined in drw.h which
+	 * holds the root window, the connection to the X server, the screen number, the colour
+	 * schemes, fonts, the graphics context and the drawable pixel map. */
 	drw = drw_create(dpy, screen, root, sw, sh);
+
+	/* This goes through all the fonts in the fonts array defined in the configuration file and
+	 * loads them. If we were not able to load any fonts then we can't proceed as the bar
+	 * depends on having a font.*/
 	if (!drw_fontset_create(drw, fonts, LENGTH(fonts)))
 		die("no fonts could be loaded.");
+
+	/* The left + right padding for text drawn on the bar is set to the height of the
+	 * (primary) font. This means that the left padding of text will be half of that. */
 	lrpad = drw->fonts->h;
+
+	/* The bar height set to be the (primary) font height + 2 pixels, one pixel below and one
+	 * pixel above the text. */
 	bh = drw->fonts->h + 2;
+
+    /// Allocate the array of Pertags
+    for (int i = 0; i < LENGTH(workspaces); i++) {
+        perworkspaces[i] = ecalloc(1, sizeof(Perworkspace));
+
+        /* We set the default master / stack factor, number of clients in the master area, whether
+         * to show the bar by default and its location based on the corresponding variables set in
+         * the configuration file. */
+        perworkspaces[i]->mfact = mfact;
+        perworkspaces[i]->nmaster = nmaster;
+        perworkspaces[i]->showbar = showbar;
+        perworkspaces[i]->topbar = topbar;
+
+        /* This sets the first layout as selected by default (which is the tile layout as per the
+         * default configuration). */
+        perworkspaces[i]->lt[0] = &layouts[0];
+
+        /* This sets the previous layout as the last layout (which is the monocle layout as per the
+         * default configuration). */
+        perworkspaces[i]->lt[1] = &layouts[1 % LENGTH(layouts)];
+
+        /* This copies the layout symbol from the first layout into the monitor's layout symbol.
+         * This is later used when drawing the layout symbol on the bar. */
+        strncpy(perworkspaces[i]->ltsymbol, layouts[0].symbol, sizeof perworkspaces[i]->ltsymbol);
+    }
+
+	/* The call to updategeom creates the monitor(s) based on Xinerama information, or it
+	 * creates a single monitor that spans all screens in the event that Xinerama is not
+	 * enabled for the screen or dwm is compiled without Xinerama support. */
 	updategeom();
-	/* init atoms */
+
+	/* Initialise atoms. This looks up the atom ID numbers for later use. */
+	/* The utf8string is only used once when setting the WM_NAME property of the supporting
+	 * window. */
 	utf8string = XInternAtom(dpy, "UTF8_STRING", False);
+
+	/* Looking up Window Management atoms:
+	 *    WMProtocols - used in sendevent
+	 *    WMDelete - used in killclient
+	 *    WMState - used in getstate and setclientstate
+	 *    WMTakeFocus - used in setfocus
+	 */
 	wmatom[WMProtocols] = XInternAtom(dpy, "WM_PROTOCOLS", False);
 	wmatom[WMDelete] = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
 	wmatom[WMState] = XInternAtom(dpy, "WM_STATE", False);
 	wmatom[WMTakeFocus] = XInternAtom(dpy, "WM_TAKE_FOCUS", False);
+
+	/* Looking up net atoms:
+	 *    NetActiveWindow - used in cleanup, clientmessage, focus, setfocus and unfocus
+	 *    NetSupported - used in setup to indicate what window manager hints are available
+	 *    NetWMName - used in updatetitle, propertynotify and setup
+	 *    NetWMState - used in clientmessage, setfullscreen, updatewindowtype
+	 *    NetWMCheck - used in setup to indicate supporting window
+	 *    NetWMFullscreen - used in clientmessage, setfullscreen and updatewindowtype
+	 *    NetWMWindowType - used in propertynotify and updatewindowtype
+	 *    NetWMWindowTypeDialog - used in updatewindowtype
+	 *    NetClientList - used in manage, setup and updateclientlist
+	 */
 	netatom[NetActiveWindow] = XInternAtom(dpy, "_NET_ACTIVE_WINDOW", False);
-   netatom[NetSupported] = XInternAtom(dpy, "_NET_SUPPORTED", False);
+    netatom[NetSupported] = XInternAtom(dpy, "_NET_SUPPORTED", False);
 	netatom[NetSystemTray] = XInternAtom(dpy, "_NET_SYSTEM_TRAY_S0", False);
 	netatom[NetSystemTrayOP] = XInternAtom(dpy, "_NET_SYSTEM_TRAY_OPCODE", False);
 	netatom[NetSystemTrayOrientation] = XInternAtom(dpy, "_NET_SYSTEM_TRAY_ORIENTATION", False);
@@ -2237,24 +2520,38 @@ setup(void)
 	netatom[NetWMWindowTypeDialog] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DIALOG", False);
 	netatom[NetClientList] = XInternAtom(dpy, "_NET_CLIENT_LIST", False);
 	netatom[NetClientInfo] = XInternAtom(dpy, "_NET_CLIENT_INFO", False);
+
 	motifatom = XInternAtom(dpy, "_MOTIF_WM_HINTS", False);
 	xatom[Manager] = XInternAtom(dpy, "MANAGER", False);
 	xatom[Xembed] = XInternAtom(dpy, "_XEMBED", False);
 	xatom[XembedInfo] = XInternAtom(dpy, "_XEMBED_INFO", False);
-	/* init cursors */
+
+	/* Initialise different cursors for when resizing and moving windows. */
 	cursor[CurNormal] = drw_cur_create(drw, "left_ptr");
 	cursor[CurResize] = drw_cur_create(drw, "se-resize");
 	cursor[CurMove] = drw_cur_create(drw, "fleur");
-	/* init appearance */
+
+	/* Initialise colour schemes. Allocate memory to hold pointers to all colour schemes. */
 	scheme = ecalloc(LENGTH(colors) + 1, sizeof(Clr *));
 	scheme[LENGTH(colors)] = drw_scm_create(drw, colors[0], 3);
+
+	/* Loop through all the entries in the colors array */
 	for (i = 0; i < LENGTH(colors); i++)
+		/* Then create the colour scheme for each entry. The last argument 3 represents the
+		 * number of colours in each colour scheme array (foreground, background and border
+		 * colours). */
 		scheme[i] = drw_scm_create(drw, colors[i], 3);
+
 	/* init system tray */
 	updatesystray();
-	/* init bars */
+
+	/* Initialise the bars. The call to updatebars creates the bar window for each monitor. */
 	updatebars();
+
+    /* The call to updatestatus is only to initialise the status text (stext) variable with
+	 * "dwm-6.3" and to update the bar. */
 	updatestatus();
+
 	/* supporting window for NetWMCheck */
 	wmcheckwin = XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, 0, 0);
 	XChangeProperty(dpy, wmcheckwin, netatom[NetWMCheck], XA_WINDOW, 32,
@@ -2389,7 +2686,7 @@ showhide(Client *c)
 		 * The only practical need for this resize call would be in the event that the size
 		 * hints of a window has been updated while it has been out of view.
 		 */
-		if ((!c->mon->lt[c->mon->sellt]->arrange || c->isfloating) && !c->isfullscreen)
+		if ((!PERWS(c->mon)->lt[PERWS(c->mon)->sellt]->arrange || c->isfloating) && !c->isfullscreen)
 			resize(c, c->x, c->y, c->w, c->h, c->bw, 0);
 
 		showhide(c->snext);
@@ -2514,6 +2811,8 @@ tile(Monitor *m)
 	 */
 	unsigned int i, n, h, mw, my, ty, bw;
 
+    const Perworkspace* pertag = perworkspaces[m->tagset[m->seltags]];
+
 	Client *c;
 
     // Sets n to number of tiled counts
@@ -2526,13 +2825,13 @@ tile(Monitor *m)
 	else
 		bw = borderpx;
 
-	if (n > m->nmaster)
-		mw = m->nmaster ? m->ww * m->mfact : 0;
+	if (n > pertag->nmaster)
+		mw = pertag->nmaster ? m->ww * pertag->mfact : 0;
 	else
 		mw = m->ww;
 	for (i = my = ty = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
-		if (i < m->nmaster) {
-			h = (m->wh - my) / (MIN(n, m->nmaster) - i);
+		if (i < pertag->nmaster) {
+			h = (m->wh - my) / (MIN(n, pertag->nmaster) - i);
 			resize(c, m->wx, m->wy + my, mw - 2*bw, h - 2*bw, bw, 0);
 			if (my + HEIGHT(c) < m->wh)
 				my += HEIGHT(c);
@@ -2547,16 +2846,17 @@ tile(Monitor *m)
 void
 togglebar(const Arg *arg)
 {
-	selmon->showbar = !selmon->showbar;
+    Perworkspace* pertag = perworkspaces[selmon->tagset[selmon->seltags]];
+	pertag->showbar = !pertag->showbar;
 	updatebarpos(selmon);
 	resizebarwin(selmon);
 	if (showsystray) {
 		XWindowChanges wc;
-		if (!selmon->showbar)
+		if (!pertag->showbar)
 			wc.y = -bh;
-		else if (selmon->showbar) {
+		else if (pertag->showbar) {
 			wc.y = 0;
-			if (!selmon->topbar)
+			if (!pertag->topbar)
 				wc.y = selmon->mh - bh;
 		}
 		XConfigureWindow(dpy, systray->win, CWY, &wc);
@@ -2754,10 +3054,10 @@ updatebarpos(Monitor *m)
 {
 	m->wy = m->my;
 	m->wh = m->mh;
-	if (m->showbar) {
+	if (PERWS(m)->showbar) {
 		m->wh -= bh;
-		m->by = m->topbar ? m->wy : m->wy + m->wh;
-		m->wy = m->topbar ? m->wy + bh : m->wy;
+		m->by = PERWS(m)->topbar ? m->wy : m->wy + m->wh;
+		m->wy = PERWS(m)->topbar ? m->wy + bh : m->wy;
 	} else
 		m->by = -bh;
 }
@@ -3385,7 +3685,7 @@ zoom(const Arg *arg)
 {
 	Client *c = selmon->sel;
 
-	if (!selmon->lt[selmon->sellt]->arrange || !c || c->isfloating)
+	if (!PERWS(selmon)->lt[PERWS(selmon)->sellt]->arrange || !c || c->isfloating)
 		return;
 	if (c == nexttiled(selmon->clients) && !(c = nexttiled(c->next)))
 		return;
