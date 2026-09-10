@@ -14,6 +14,7 @@ tree_recurse(const TreeNode *node, int x, int y, int w, int h, int bw)
         return;
     }
 
+    /// TODO: If there's an odd number of pixels then there's a one pixel gap
     if (node->stacked) {
         // Stacked vertically: a on top, b on bottom
         //  ┌─────────┐
@@ -319,12 +320,15 @@ navigate_tree(TreeNode *node, int dir)
     return curr;
 }
 
+/// Move node across tree
 void
 treenode_move_node(const Arg *arg)
 {
     Client *sel = selmon->sel;
     if (!sel || !sel->node)
         return;
+
+    // TODO: Check if we are on the tree mode and return if no
 
     TreeNode *target = navigate_tree(sel->node, arg->i);
 
@@ -360,6 +364,10 @@ tree_find_shallowest_leaf(int workspace)
     if (!perworkspaces[workspace - 1]->root)
         return NULL;
 
+    /// TODO: Currently there is no mechanism to allocate more space in
+    /// the queue if the number of nodes exceeds 64. Furthermore there's
+    /// no wrapping mechanism to insure our index always lands between 0
+    /// and 63
     TreeNode *queue[64];
     int front = 0;
     int rear = 1;
