@@ -14,6 +14,8 @@ tree_recurse(const TreeNode *node, int x, int y, int w, int h, int bw)
         return;
     }
 
+    const double proportion = node->proportion / 100;
+
     /// TODO: If there's an odd number of pixels then there's a one pixel gap
     if (node->stacked) {
         // Stacked vertically: a on top, b on bottom
@@ -22,15 +24,15 @@ tree_recurse(const TreeNode *node, int x, int y, int w, int h, int bw)
         //  ├─────────┤
         //  │    b    │
         //  └─────────┘
-        tree_recurse(node->a, x, y, w, h / 2, bw); // Top half
-        tree_recurse(node->b, x, y + h / 2, w, h / 2, bw); // Bottom half
+        tree_recurse(node->a, x, y, w, h * proportion, bw); // Top half
+        tree_recurse(node->b, x, y + h * proportion, w, h * (1 - proportion), bw); // Bottom half
     } else {
         // Side by side: a on left, b on right
         //  ┌─────┬─────┐
         //  │  a  │  b  │
         //  └─────┴─────┘
-        tree_recurse(node->a, x, y, w / 2, h, bw); // Left half
-        tree_recurse(node->b, x + w / 2, y, w / 2, h, bw); // Right half
+        tree_recurse(node->a, x, y, w * proportion, h, bw); // Left half
+        tree_recurse(node->b, x + w * proportion, y, w * (1 - proportion), h, bw); // Right half
     }
 }
 
@@ -252,6 +254,30 @@ tree_add_client(Client *c)
         treenode_auto_add(c);
 }
 
+// TODO: Merge this function and the ascend part of the next one (navigate tree)
+
+static TreeNode*
+tree_find_crossing_point(TreeNode* node, int dir)
+{
+    // Direction Mapping: 0 = LEFT, 1 = DOWN, 2 = UP, 3 = RIGHT
+    int is_vertical   = (dir == 1 || dir == 2); // Axis: 1 for V-splits, 0 for H-splits
+    int coming_from_a = (dir == 1 || dir == 3); // DOWN and RIGHT require coming from 'a'
+
+    TreeNode *curr = node;
+    TreeNode *parent = node->parent;
+
+    // ASCENT: Climb until we find a split along our movement axis that we can cross
+    while (parent) {
+        if (parent->stacked == is_vertical) {
+            // Split is along our movement axis:
+            // Check if we are currently on the starting side of the split
+            if (curr->is_A == coming_from_a) {
+                return parent;
+            }
+        } 
+    }
+}
+
 static TreeNode *
 navigate_tree(TreeNode *node, int dir)
 {
@@ -268,6 +294,7 @@ navigate_tree(TreeNode *node, int dir)
     TreeNode *curr = node;
     TreeNode *parent = node->parent;
 
+    // TODO: Replace this block of text with tree_find_crossing_point
     // ASCENT: Climb until we find a split along our movement axis that we can cross
     while (parent) {
         if (parent->stacked == is_vertical) {
@@ -320,6 +347,21 @@ navigate_tree(TreeNode *node, int dir)
     return curr;
 }
 
+void
+tree_focus_neighbor(const Arg *arg)
+{
+    Client *sel = selmon->sel;
+    if (!sel || !sel->node)
+        return;
+
+    TreeNode *target = navigate_tree(sel->node, arg->i);
+
+    if (target && target->client) {
+        focus(target->client);
+        restack(selmon);
+    }
+}
+
 /// Move node across tree
 void
 treenode_move_node(const Arg *arg)
@@ -340,21 +382,6 @@ treenode_move_node(const Arg *arg)
         tree_remove_client(sel);
         treenode_internal_add(sel, target_client);
         arrange(selmon);
-    }
-}
-
-void
-tree_focus_neighbor(const Arg *arg)
-{
-    Client *sel = selmon->sel;
-    if (!sel || !sel->node)
-        return;
-
-    TreeNode *target = navigate_tree(sel->node, arg->i);
-
-    if (target && target->client) {
-        focus(target->client);
-        restack(selmon);
     }
 }
 
@@ -409,4 +436,19 @@ treenode_auto_add(Client *c)
     TreeNode *node = tree_find_shallowest_leaf(c->workspace);
     Client *focused = node ? node->client : NULL;
     treenode_internal_add(c, focused);
+}
+
+void
+tree_change_proportion(const Arg *arg)
+{
+    TreeNode *crossing_node = tree_find_crossing_point(selmon->sel->node, arg->i);
+
+    switch (arg->i) {
+        case 0: // Left
+        case 1: // Down
+            crossing_node->proportion -= 5;
+        case 2: // Up
+        case 3: // Right
+            crossing_node->proportion -= 5;
+    }
 }

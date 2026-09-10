@@ -29,6 +29,10 @@ struct TreeNode {
     Client* client;
 
     TreeNode *parent;
+
+    /// Number between 5 and 95 indicating how much of the allocated
+    /// area node a takes up
+    int proportion;
 };
 
 void tree(Monitor *m);
@@ -38,5 +42,6 @@ void treenode_move_node(const Arg *arg);
 void treenode_move(const Arg *arg);
 void tree_focus_neighbor(const Arg *arg);
 void tree_remove_client(Client *c);
+void tree_change_proportion(const Arg *arg);
 
 #endif /* TREE_H */
