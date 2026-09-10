@@ -6,6 +6,8 @@
 /// Manual Node is either a program (Client) or a split of two ManualNodes.
 /// The children nodes are either vertically or horizontally split
 struct TreeNode {
+    // TODO: Perhaps wrap (a and b) and (stacked, client and proportion) in a union
+    // to better represent their mutual exclusivity
 
     /// Children Nodes that will be display when its split
     /// Can either be arranged as:
