@@ -373,7 +373,7 @@ swallow(Client *p, Client *c)
 
 	detach(c);
 	detachstack(c);
-    treenode_remove(c);
+    tree_remove_client(c);
 	setclientstate(c, WithdrawnState);
 	XUnmapWindow(dpy, p->win);
 	p->swallowing = c;
@@ -1478,7 +1478,7 @@ manage(Window w, XWindowAttributes *wa)
 	attachstack(c);
 
     /// Create a tree node for our newly created client.
-    treenode_add(c);
+    tree_add_client(c);
 
 	XChangeProperty(dpy, root, netatom[NetClientList], XA_WINDOW, 32, PropModeAppend,
 		(unsigned char *) &(c->win), 1);
@@ -2023,7 +2023,7 @@ sendmon(Client *c, Monitor *m)
 	 * stacking order list before we can move the client. */
 	detach(c);
 	detachstack(c);
-	treenode_remove(c);
+	tree_remove_client(c);
 
 	/* Set the client's monitor to be the target monitor. */
 	c->mon = m;
@@ -2032,7 +2032,7 @@ sendmon(Client *c, Monitor *m)
 	c->workspace = m->selected_workspaces[m->sel_ws];
 
     // Make a treenode for the newly created client
-	treenode_add(c);
+	tree_add_client(c);
 
 	/* Add the client to the target monitor's client list. */
 	attach(c);
@@ -2449,7 +2449,7 @@ sendtoworkspace(const Arg *arg)
         Client *c = selmon->sel;
 
         /* Tree root is keyed by workspace. Remove before changing workspace. */
-        treenode_remove(c);
+        tree_remove_client(c);
         c->workspace = arg->ui;
         setclientworkspaceprop(c);
 
@@ -2637,7 +2637,7 @@ unmanage(Client *c, int destroyed)
 	detach(c);
 	detachstack(c);
 
-    treenode_remove(c);
+    tree_remove_client(c);
 
 	/* If the window has already been destroyed then we don't have to take any further action
 	 * with regards to the window itself. The function parameter destroyed will be true (1) if

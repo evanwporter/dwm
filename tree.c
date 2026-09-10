@@ -113,7 +113,7 @@ treenode_move(const Arg *arg)
 }
 
 void
-treenode_remove(Client* c) 
+tree_remove_client(Client* c) 
 {   
     if (!c)
         return;
@@ -236,7 +236,7 @@ treenode_internal_add(Client *c, Client *focused)
 }
 
 void
-treenode_add(Client *c)
+tree_add_client(Client *c)
 {
     Client *focused;
 
@@ -334,14 +334,14 @@ treenode_move_node(const Arg *arg)
          * would remove new leaf and leave old leaf pointing at sel. */
         Client *target_client = target->client;
 
-        treenode_remove(sel);
+        tree_remove_client(sel);
         treenode_internal_add(sel, target_client);
         arrange(selmon);
     }
 }
 
 void
-treenode_navigate(const Arg *arg)
+tree_focus_neighbor(const Arg *arg)
 {
     Client *sel = selmon->sel;
     if (!sel || !sel->node)
@@ -356,7 +356,7 @@ treenode_navigate(const Arg *arg)
 }
 
 static TreeNode*
-closest_leaf(int workspace)
+tree_find_shallowest_leaf(int workspace)
 {
     if (!workspace_roots[workspace - 1])
         return NULL;
@@ -399,7 +399,7 @@ treenode_auto_add(Client *c)
     if (!c || !c->mon || c->node)
         return;
 
-    TreeNode *node = closest_leaf(c->workspace);
+    TreeNode *node = tree_find_shallowest_leaf(c->workspace);
     Client *focused = node ? node->client : NULL;
     treenode_internal_add(c, focused);
 }

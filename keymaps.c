@@ -1,4 +1,5 @@
 #include "dwm.h"
+#include "tree.h"
 
 #include <string.h>
 
@@ -17,7 +18,7 @@ void
 key_move(const Arg *arg)
 {
     if (intree()) {
-        treenode_navigate(arg);
+        tree_focus_neighbor(arg);
         return;
     }
 

@@ -30,11 +30,11 @@ struct TreeNode {
 };
 
 void tree(Monitor *m);
-void treenode_add(Client *c);
+void tree_add_client(Client *c);
 void treenode_auto_add(Client *c);
 void treenode_move_node(const Arg *arg);
 void treenode_move(const Arg *arg);
-void treenode_navigate(const Arg *arg);
-void treenode_remove(Client *c);
+void tree_focus_neighbor(const Arg *arg);
+void tree_remove_client(Client *c);
 
 #endif /* TREE_H */
