@@ -164,6 +164,9 @@ struct Client {
 
     /// The managed window that this client represents.
 	Window win;
+
+    /// The icon to display in the tabline / window titles
+    char *icon;
 };
 
 typedef struct {
@@ -339,6 +342,20 @@ typedef struct Perworkspace {
     TreeNode* root;
 } Perworkspace;
 
+/* The definition of a rule, used in the configuration file when setting up client rules.
+ *
+ * static const Rule rules[] = {
+ *    // xprop(1):
+ *    //    WM_CLASS(STRING) = instance, class
+ *    //    WM_NAME(STRING) = title
+ *    //
+ *    // class      instance    title       tags mask     isfloating   monitor
+ *    { "Gimp",     NULL,       NULL,       0,            1,           -1 },
+ *    { "Firefox",  NULL,       NULL,       1 << 8,       0,           -1 },
+ * };
+ *
+ * See the applyrules function for how the rules are applied.
+ */
 typedef struct {
 	const char *class;
 	const char *instance;
@@ -348,6 +365,7 @@ typedef struct {
 	int isterminal;
 	int noswallow;
 	int monitor;
+    const char *icon;
 } Rule;
 
 typedef struct Systray   Systray;

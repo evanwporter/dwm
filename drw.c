@@ -233,18 +233,48 @@ drw_setscheme(Drw *drw, Clr *scm)
 		drw->scheme = scm;
 }
 
+/* Function to draw a filled or hollow rectangle.
+ *
+ * @called_from drawbar to draw rectangles on the bar
+ * @calls XSetForeground https://tronche.com/gui/x/xlib/GC/convenience-functions/XSetForeground.html
+ * @calls XFillRectangle https://tronche.com/gui/x/xlib/graphics/filling-areas/XFillRectangle.html
+ * @calls XDrawRectangle https://tronche.com/gui/x/xlib/graphics/drawing/XDrawRectangle.html
+ *
+ * Internal call stack:
+ *    ~ -> drawbar -> drw_rect
+ */
 void
 drw_rect(Drw *drw, int x, int y, unsigned int w, unsigned int h, int filled, int invert)
 {
+	/* General guard, should never happen in practice. */
 	if (!drw || !drw->scheme)
 		return;
+
+    /* This sets the foreground colour to the current colour scheme's foreground pixel. If the
+	 * colours are inverted then the current colour scheme's background pixel is used instead. */
 	XSetForeground(drw->dpy, drw->gc, invert ? drw->scheme[ColBg].pixel : drw->scheme[ColFg].pixel);
+
+	/* If the rectangle should be solid then we call the XFillRectangle function to draw it. */
 	if (filled)
 		XFillRectangle(drw->dpy, drw->drawable, drw->gc, x, y, w, h);
+	
+    /* Otherwise we call the XDrawRectangle function to draw a hollow rectangle. */
 	else
 		XDrawRectangle(drw->dpy, drw->drawable, drw->gc, x, y, w - 1, h - 1);
 }
 
+/* This function handles the drawing of text as well as calculating the width of text when called
+ * via drw_fontset_getwidth.
+ *
+ * The general flow is to:
+ *    - work out how many bytes the next multi-byte UTF-8 character spans
+ *    - find a font that has a glyph for that character, this may involve searching for and loading
+ *      additional fonts
+ *    - work out the width of the character when drawn with that font
+ *    - draw the as many characters as possible using the specific font, but fall back to the
+ *      primary font if that has a glyph for the next character
+ *    - if the text is too long to be shown, then end the text by drawing an ellipsis (...)
+ */
 int
 drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, const char *text, int invert)
 {
@@ -260,32 +290,67 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 	FcPattern *match;
 	XftResult result;
 	int charexists = 0, overflow = 0;
-	/* keep track of a couple codepoints for which we have no match. */
+
+	/* Keep track of a couple codepoints for which we have no match. This is a performance
+	 * optimisation to avoid spending wasteful time searching for a font that does not exit over
+	 * and over again. Here we reserve space to hold up to 128 known code points (characters) for
+	 * which we know there is no font that has a glyph for that character.
+	 * The ellipsis_width variable holds the ellipsis' rendered width (in pixels).
+	 * The invalid_width variable holds the rendered width (in pixels) of an invalid character
+	 * representation.
+	 * These variables are static so that we will only ever have to calculate them once.
+	 */
 	static unsigned int nomatches[128], ellipsis_width, invalid_width;
+
 	static const char invalid[] = "�";
 
+	/* General guard to prevent anything bad from happening in the event that this function is
+	 * called before we have everything we need set up (like colour schemes, fonts, etc.). */
 	if (!drw || (render && (!drw->scheme || !w)) || !text || !drw->fonts)
 		return 0;
 
 	if (!render) {
 		w = invert ? invert : ~invert;
 	} else {
+        /* If we are rendering the text then the first thing we do is to set the foreground color
+		 * and drawing a rectangle covering the width of the text. This is to clear anything that
+		 * may have been drawn before. */
 		XSetForeground(drw->dpy, drw->gc, drw->scheme[invert ? ColFg : ColBg].pixel);
 		XFillRectangle(drw->dpy, drw->drawable, drw->gc, x, y, w, h);
+
+        /* Cover for an edge case where the remaining width is less than the left padding in which
+		 * we just skip to the end. Without this it is possible to end up with an unsigned integer
+		 * underflow (i.e. w ending up very very large) and text potentially being overwritten. */
 		if (w < lpad)
 			return x + w;
+
+		/* We prepare the XftDraw structure that will be used to draw the text later. */
 		d = XftDrawCreate(drw->dpy, drw->drawable,
 		                  DefaultVisual(drw->dpy, drw->screen),
 		                  DefaultColormap(drw->dpy, drw->screen));
+
+        /* Apply the left padding to the starting position of the text. Reduce the width
+		 * accordingly. */
 		x += lpad;
 		w -= lpad;
 	}
 
+    /* Start with the primary font. */
 	usedfont = drw->fonts;
+
+	/* If this is the first time we are actually drawing text, then ellipsis_width will be 0 and
+	 * we call drw_fontset_getwidth to get the actual width of the ellipsis ("...") text. The
+	 * ellipsis_width variable is static which means that it will keep this value for all future
+	 * calls to this function, which in turn means that the width of the ellipsis will only be
+	 * calculated once for the as long as the program runs. */
 	if (!ellipsis_width && render)
 		ellipsis_width = drw_fontset_getwidth(drw, "...");
+
+	/* As above here we calculate the rendered width of an invalid character (in pixels). */
 	if (!invalid_width && render)
 		invalid_width = drw_fontset_getwidth(drw, invalid);
+
+	/* Keep doing the below until we run out of text or we run out of space to draw the text. */
 	while (1) {
 		ew = ellipsis_len = utf8err = utf8charlen = utf8strlen = 0;
 		utf8str = text;
@@ -416,11 +481,17 @@ drw_map(Drw *drw, Window win, int x, int y, unsigned int w, unsigned int h)
 	XSync(drw->dpy, False);
 }
 
+/// This copies graphics from the drawable and places that on the designated window.
 unsigned int
 drw_fontset_getwidth(Drw *drw, const char *text)
 {
+	/* If we have no drawable, have no fonts or the text is NULL then bail. This is
+	 * just a general guard that should never happen in practice. */
 	if (!drw || !drw->fonts || !text)
 		return 0;
+
+    /* Calls drw_text with parameters indicating that we are only interested in the
+	 * width of the text and that no effort should be done drawing the text. */
 	return drw_text(drw, 0, 0, 0, 0, 0, text, 0);
 }
 

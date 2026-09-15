@@ -23,6 +23,8 @@ static const int topbar                  = 0;   /* 0 means bottom bar */
 static const int horizpadbar             = 2;   /* horizontal padding for statusbar */
 static const int vertpadbar              = 0;   /* vertical padding for statusbar */
 
+static const int iconspacing             = 15;  /* space between an app icon and its title */
+
 static const char *fonts[]               = { 
     "JetBrainsMonoNL NFP:size=13:style=Bold", 
     "Font Awesome 6 Free Solid:size=13"
@@ -57,12 +59,13 @@ static const Rule rules[] = {
 	 *	WM_CLASS(STRING) = instance, class
 	 *	WM_NAME(STRING) = title
 	 */
-	/* class         instance  title           workspace  isfloating  isterminal  noswallow  monitor */
-	{ "Gimp",        NULL,     NULL,           0,         1,          0,           0,        -1 },
-	{ "Firefox",     NULL,     NULL,           0,         0,          0,          -1,        -1 },
-	{ "kitty",       NULL,     NULL,           0,         0,          1,           0,        -1 },
-	{ "st-256color", NULL,     NULL,           0,         0,          1,           0,        -1 },
-	{ NULL,          NULL,     "Event Tester", 0,         0,          0,           1,        -1 }, /* xev */
+	/* class         instance  title           workspace  isfloating  isterminal  noswallow  monitor  icon*/
+	{ "Gimp",        NULL,     NULL,           0,         1,          0,           0,        -1,      "󰈹"  },
+	{ "Firefox",     NULL,     NULL,           0,         0,          0,          -1,        -1,      "󰄛"  },
+	{ "kitty",       NULL,     NULL,           0,         0,          1,           0,        -1,      ""  },
+	{ "st-256color", NULL,     NULL,           0,         0,          1,           0,        -1,      NULL },
+	{ "Codium",      NULL,     NULL,           0,         0,          0,           0,        -1,      ""  },
+	{ NULL,          NULL,     "Event Tester", 0,         0,          0,           1,        -1,      NULL }, /* xev */
 };
 
 /* layout(s) */

@@ -99,6 +99,11 @@ Window root, wmcheckwin;
 xcb_connection_t *xcon;
 Perworkspace *perworkspaces[LENGTH(workspaces)];
 
+// ┌──────────┬──────┬─────────────────────────────────────────┬──────────────┬────────┐
+// │ 1 2 3    │[]=]  │  vim │  firefox │  terminal             │ 10:30 AM     │ WIFI   │
+// └──────────┴──────┴─────────────────────────────────────────┴──────────────┴────────┘
+//  workspaces layout      window titles                          status       systray
+
 /* function implementations */
 
 /* This function applies client rules for a client window.
@@ -211,6 +216,8 @@ applyrules(Client *c)
 			// Sets the workspace
 			c->workspace = r->workspace;
 
+			c->icon = r->icon;
+
 			/* This loops through all monitors trying to find one that matches the monitor
 			 * rule value. If the rule value is -1 then we simply exhaust the list and m
 			 * will be NULL and thus not set. */
@@ -225,6 +232,10 @@ applyrules(Client *c)
 			 * all matching rules. Situations where this applies is fairly rare. */
 		}
 	}
+
+	if (c->icon)
+		updatetitle(c);
+
 	if (ch.res_class)
 		XFree(ch.res_class);
 	if (ch.res_name)
@@ -964,16 +975,34 @@ drawstatusbar(Monitor *m, int bh, char* stext) {
 void
 drawbar(Monitor *m)
 {
-	int x, w, tw = 0, stw = 0, n = 0, scm;
-	unsigned int i, occ = 0, urg = 0;
+	/// Holds the x position within the bar window
+	int x;
+
+	/// Holds temporary width values when drawing the bar
+	int w;
+
+	/// Short for text width, holds the status text width
+	int tw = 0;
+
+	int stw = 0, n = 0, scm;
+
+	/// Common iterator
+	unsigned int i;
+
+	/// Bitmask that holds occupied workspaces
+	unsigned int occ = 0;
+
+	/// Bitmask that holds tags with clients that have teh urgent flag set
+	unsigned int urg = 0;
+
 	Client *c;
 
 	// If the bar is not shown then don't spend any effort drawing the bar.
-    if (!PERWS(m)->showbar)
+	if (!PERWS(m)->showbar)
 		return;
 
 	// If the system tray is enabled, belongs on this monitor, and is positioned
-    // on the right, get its width so drawing does not overlap it.
+	// on the right, get its width so drawing does not overlap it.
 	if(showsystray && m == systraytomon(m) && !systrayonleft)
 		stw = getsystraywidth();
 
@@ -1022,21 +1051,47 @@ drawbar(Monitor *m)
 	drw_setscheme(drw, scheme[SchemeNorm]);
 	x = drw_text(drw, x, 0, w, bh, lrpad / 2, PERWS(m)->ltsymbol, 0);
 
+	/// Draw window titles
+	/* This checks if there is any space left to draw the window title (while setting w to the
+	 * remaining width at the same time). */
 	if ((w = m->ww - tw - stw - x) > bh) {
+		// If there are visible windows to display
 		if (n > 0) {
 			int remainder = w % n;
+
+			/// Tab Width: What each tab gets by distributing width evenly
 			int tabw = w / n;
+
 			for (c = m->clients; c; c = c->next) {
 				if (!ISVISIBLE(c))
 					continue;
 				scm = m->sel == c ? SchemeSel : HIDDEN(c) ? SchemeHid : SchemeNorm;
 				drw_setscheme(drw, scheme[scm]);
+
+				/// Client width: width allocated to this specific client's window title.
+				/// Base Width (tabw) + 1 extra pixel if there's any pixels left in remainder
 				int cw = tabw + (remainder-- > 0 ? 1 : 0);
-				drw_text(drw, x, 0, cw, bh, lrpad / 2, c->name, 0);
+
+				/// Icon width: how much space to allocate for the icon (+ spacing)
+				unsigned int iconw = c->icon ? drw_fontset_getwidth(drw, c->icon) : 0;
+
+				// Draw the window's title at position x with width cw
+				// This includes filling in the whole background
+				drw_text(drw, x, 0, cw, bh,
+					lrpad / 2 + (c->icon ? iconw + iconspacing : 0), c->name, 0);
+
+				// Optionally draw the icon
+				if (c->icon)
+					drw_text(drw, x + lrpad / 2, 0, iconw, bh, 0, c->icon, 0);
+
+				// Move x position forward for next window
 				x += cw;
 			}
 		} else {
+			// No visible windows - just draw empty space
 			drw_setscheme(drw, scheme[SchemeNorm]);
+
+			// Draw a filled rectangle in the normal color scheme
 			drw_rect(drw, x, 0, w, bh, 1, 1);
 		}
 	}
@@ -3318,12 +3373,23 @@ updatesizehints(Client *c)
 	c->hintsvalid = 1;
 }
 
+/* This updates the status text by reading the WM_NAME property of the root window.
+ * The statusbar is the rightmost text.
+ *
+ * One can test this by running xsetroot like this:
+ *    $ xsetroot -name "status text"
+ */
 void
 updatestatus(void)
 {
+	/* This retrieves the text property of WM_NAME from the root window and stores that in the
+	 * status text (stext) variable which is later used when drawing the bar. */
 	if (!gettextprop(root, XA_WM_NAME, stext, sizeof(stext)))
 		strcpy(stext, "dwm-"VERSION);
+
+    /* Update the bar as the status text has changed */
 	drawbar(selmon);
+
 	updatesystray();
 }
 
@@ -3446,11 +3512,42 @@ updatesystray(void)
 	XSync(dpy, False);
 }
 
+/* This updates the window title for the client.
+ *
+ * This is used for showing the window title in the bar and when trying to match client rules when
+ * the windows is first managed.
+ */
 void
 updatetitle(Client *c)
 {
+	/* Get the text property of a given client's window.
+	 *
+	 * The window title can be seen using xprop and clicking on the client window, e.g.
+	 *
+	 *    $ xprop | grep _NET_WM_NAME
+	 *    _NET_WM_NAME(UTF8_STRING) = "~"
+	 *
+	 * One can set a new title for a window using xdotool, but note that many applications
+	 * tend to manage the window title on their own and as such may overwrite what you set
+	 * using external tools like this.
+	 *
+	 *    xdotool selectwindow set_window --name "new title"
+	 */
 	if (!gettextprop(c->win, netatom[NetWMName], c->name, sizeof c->name))
+        /* Fall back to checking WM_NAME if the window does not have a _NET_WM_NAME
+		 * property. */
 		gettextprop(c->win, XA_WM_NAME, c->name, sizeof c->name);
+
+	/* Some windows do not have a window title set, in which case we fall back to using the
+	 * text "broken" to indicate this. It is better than displaying nothing in the window
+	 * title.
+	 *
+	 * The text is defined in the global variable named broken:
+	 *    static const char broken[] = "broken";
+	 *
+	 * The strcpy call copies all bytes (characters) from the broken array into the client
+	 * name variable.
+	 */
 	if (c->name[0] == '\0') /* hack to mark broken clients */
 		strcpy(c->name, broken);
 }
