@@ -857,7 +857,7 @@ drawstatusbar(Monitor *m, int bh, char* stext) {
 		isCode = 0;
 	text = p;
 
-	w += 2; /* 1px padding on both sides */
+	w += horizpadbar; /* 1px padding on both sides */
 	ret = m->ww - w;
 	x = m->ww - w - getsystraywidth();
 
@@ -865,7 +865,7 @@ drawstatusbar(Monitor *m, int bh, char* stext) {
 	drw->scheme[ColFg] = scheme[SchemeStatus][ColFg];
 	drw->scheme[ColBg] = scheme[SchemeStatus][ColBg];
 	drw_rect(drw, x, 0, w, bh, 1, 1);
-	x++;
+    x += horizpadbar / 2;
 
 	/* process status text */
 	i = -1;
@@ -2443,11 +2443,11 @@ setup(void)
 
 	/* The left + right padding for text drawn on the bar is set to the height of the
 	 * (primary) font. This means that the left padding of text will be half of that. */
-	lrpad = drw->fonts->h;
+    lrpad = drw->fonts->h + horizpadbar;
 
 	/* The bar height set to be the (primary) font height + 2 pixels, one pixel below and one
 	 * pixel above the text. */
-	bh = drw->fonts->h + 2;
+    bh = drw->fonts->h + vertpadbar;
 
     /// Allocate the array of Pertags
     for (int i = 0; i < LENGTH(workspaces); i++) {
