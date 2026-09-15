@@ -32,9 +32,9 @@ Test(move_node, moving_client_then_removing_all_leaves_no_stale_nodes)
     Client b = {.mon = &monitor, .workspace = 1};
     Arg right = {.i = 3};
 
-    tree_add_client(&a);
+    treenode_add(&a);
     monitor.sel = &a;
-    tree_add_client(&b);
+    treenode_add(&b);
     selmon = &monitor;
 
     treenode_move_node(&right);
@@ -44,8 +44,8 @@ Test(move_node, moving_client_then_removing_all_leaves_no_stale_nodes)
     cr_assert_eq(perworkspaces[0]->root->b->client, &a);
     cr_assert_eq(a.node, perworkspaces[0]->root->b);
 
-    tree_remove_client(&a);
-    tree_remove_client(&b);
+    treenode_remove(&a);
+    treenode_remove(&b);
     cr_assert_null(perworkspaces[0]->root);
     selmon = NULL;
 }
@@ -148,4 +148,3 @@ Test(move_node, moving_ba_left_flips_the_outer_split)
     cr_assert_eq(b.b, &bb);
     selmon = NULL;
 }
-

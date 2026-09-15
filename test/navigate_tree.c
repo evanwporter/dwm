@@ -20,7 +20,7 @@ Test(navigate_node, navigating_ba_up_focuses_a)
 
     setup_nested_pair(&monitor, &a_client, &ba_client, &bb_client,
         &root, &a, &b, &ba, &bb);
-    tree_focus_neighbor(&up);
+    treenode_navigate(&up);
 
     cr_assert_eq(monitor.sel, &a_client);
     cr_assert_eq(monitor.sel->node, &a);
@@ -69,7 +69,7 @@ Test(navigate_node, navigating_bb_up_focuses_baa_in_a_nested_tree)
     monitor.sel = &bb_client;
     selmon = &monitor;
 
-    tree_focus_neighbor(&up);
+    treenode_navigate(&up);
 
     cr_assert_eq(monitor.sel, &baa_client);
     cr_assert_eq(monitor.sel->node, &baa);
@@ -92,7 +92,7 @@ Test(navigate_node, navigating_baa_left_keeps_focus_at_the_left_edge)
     Arg left = {.i = 0};
 
     setup_complex_tree(&tree);
-    tree_focus_neighbor(&left);
+    treenode_navigate(&left);
 
     cr_assert_eq(tree.monitor.sel, &tree.baa_client);
     selmon = NULL;
@@ -114,7 +114,7 @@ Test(navigate_node, navigating_baa_down_focuses_bb)
     Arg down = {.i = 1};
 
     setup_complex_tree(&tree);
-    tree_focus_neighbor(&down);
+    treenode_navigate(&down);
 
     cr_assert_eq(tree.monitor.sel, &tree.bb_client);
     selmon = NULL;
@@ -136,7 +136,7 @@ Test(navigate_node, navigating_baa_up_focuses_aab)
     Arg up = {.i = 2};
 
     setup_complex_tree(&tree);
-    tree_focus_neighbor(&up);
+    treenode_navigate(&up);
 
     cr_assert_eq(tree.monitor.sel, &tree.aab_client);
     selmon = NULL;
@@ -158,7 +158,7 @@ Test(navigate_node, navigating_baa_right_focuses_bab)
     Arg right = {.i = 3};
 
     setup_complex_tree(&tree);
-    tree_focus_neighbor(&right);
+    treenode_navigate(&right);
 
     cr_assert_eq(tree.monitor.sel, &tree.bab_client);
     selmon = NULL;
