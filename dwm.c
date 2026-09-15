@@ -208,8 +208,8 @@ applyrules(Client *c)
 			c->noswallow = r->noswallow;
 			c->isfloating = r->isfloating;
 
-			/* Note that this adds rather than sets tags. */
-            c->workspace |= r->workspace;
+			// Sets the workspace
+			c->workspace = r->workspace;
 
 			/* This loops through all monitors trying to find one that matches the monitor
 			 * rule value. If the rule value is -1 then we simply exhaust the list and m
