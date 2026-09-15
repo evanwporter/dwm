@@ -37,8 +37,11 @@
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
+#define NUMTAGS                 (LENGTH(workspaces) + LENGTH(scratchpads))
 #define WORKSPACEMASK           ((1 << LENGTH(workspaces)) - 1)
 #define WORKSPACEBIT(W)         (1U << ((W) - 1))
+#define SPTAG(i)                ((1 << LENGTH(workspaces)) << (i))
+#define SPTAGMASK               (((1 << LENGTH(scratchpads))-1) << LENGTH(workspaces))
 #define PERWORKSPACE(M)         (perworkspaces[(M)->selected_workspaces[(M)->sel_ws] - 1])
 #define PERWS(M)                PERWORKSPACE(M)
 
@@ -85,6 +88,11 @@ typedef union {
 	float f;
 	const void *v;
 } Arg;
+
+typedef struct {
+	const char *name;
+	const void *cmd;
+} Sp;
 
 typedef struct {
 	unsigned int click;
@@ -466,6 +474,7 @@ void tile(Monitor *m);
 void tree(Monitor *m);
 void togglebar(const Arg *arg);
 void togglefloating(const Arg *arg);
+void togglescratch(const Arg *arg);
 void togglewin(const Arg *arg);
 void treenode_add(Client *c);
 void treenode_move(const Arg *arg);

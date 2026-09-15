@@ -218,6 +218,12 @@ applyrules(Client *c)
 
 			c->icon = r->icon;
 
+			/* If this is a scratchpad and it's floating, center it */
+			if ((r->workspace & SPTAGMASK) && r->isfloating) {
+				c->x = c->mon->wx + (c->mon->ww / 2 - WIDTH(c) / 2);
+				c->y = c->mon->wy + (c->mon->wh / 2 - HEIGHT(c) / 2);
+			}
+
 			/* This loops through all monitors trying to find one that matches the monitor
 			 * rule value. If the rule value is -1 then we simply exhaust the list and m
 			 * will be NULL and thus not set. */
@@ -241,11 +247,13 @@ applyrules(Client *c)
 	if (ch.res_name)
 		XFree(ch.res_name);
 
-	/* This guard checks whether the client is to be shown on a valid tag. If it is not
-	 * then we show the client on whatever tag(s) the client's monitor has active. */
-	c->tags = CHECK_WS_BOUNDS(c->workspace) 
-        ? c->workspace 
+	/* This guard checks whether the client is to be shown on a valid workspace. If it is not
+	 * then we show the client on whatever workspace the client's monitor has active, but excluding
+	 * scratchpad workspaces (SPTAGMASK). Scratchpads are only assigned via explicit rules. */
+	c->workspace = c->workspace && CHECK_WS_BOUNDS(c->workspace)
+        ? c->workspace
         : c->mon->selected_workspaces[c->mon->sel_ws];
+	c->tags = c->workspace;
 }
 
 int
@@ -2789,6 +2797,12 @@ showhide(Client *c)
 		return;
 
 	if (ISVISIBLE(c)) {
+		/* Center scratchpads when showing them */
+		if ((c->workspace & SPTAGMASK) && c->isfloating) {
+			c->x = c->mon->wx + (c->mon->ww / 2 - WIDTH(c) / 2);
+			c->y = c->mon->wy + (c->mon->wh / 2 - HEIGHT(c) / 2);
+		}
+
 		/* show clients top down */
 		XMoveWindow(dpy, c->win, c->x, c->y);
 
@@ -3056,6 +3070,39 @@ togglefloating(const Arg *arg)
 			selmon->sel->h - 2 * (borderpx - selmon->sel->bw),
 			borderpx, 0);
 	arrange(selmon);
+}
+
+void
+togglescratch(const Arg *arg)
+{
+    Client *c;
+    unsigned int found = 0;
+    unsigned int scratchworkspace = SPTAG(arg->ui);
+    Arg sparg = {.v = scratchpads[arg->ui].cmd};
+
+    /* Search for a client with the scratchpad workspace */
+    for (c = selmon->clients; c && !(found = c->workspace == scratchworkspace); c = c->next);
+
+    if (found) {
+        /* If found, toggle its visibility by switching workspaces */
+        if (ISVISIBLE(c)) {
+            /* Currently visible - switch away to hide it */
+            /* Restore previous workspace */
+            selmon->sel_ws ^= 1;
+            focus(NULL);
+            arrange(selmon);
+        } else {
+            /* Not visible - switch to scratchpad workspace to show it */
+            selmon->selected_workspaces[selmon->sel_ws] = scratchworkspace;
+            focus(c);
+            arrange(selmon);
+            restack(selmon);
+        }
+    } else {
+        /* Scratchpad window doesn't exist - spawn it and switch to its workspace */
+        selmon->selected_workspaces[selmon->sel_ws] = scratchworkspace;
+        spawn(&sparg);
+    }
 }
 
 void

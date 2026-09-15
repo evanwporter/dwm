@@ -51,6 +51,17 @@ static const char *colors[][3] = {
 	[SchemeHid]    = { selbgcolor, normbgcolor, selbgcolor },
 };
 
+/* scratchpads */
+const char *spcmd1[] = {"kitty", "--class", "spterm", NULL };
+const char *spcmd2[] = {"kitty", "--class", "spfm", "-e", "ranger", NULL };
+const char *spcmd3[] = {"keepassxc", NULL };
+static Sp scratchpads[] = {
+	/* name          cmd  */
+	{"spterm",      spcmd1},
+	{"spranger",    spcmd2},
+	{"keepassxc",   spcmd3},
+};
+
 /* tagging */
 static const char *workspaces[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
@@ -66,6 +77,9 @@ static const Rule rules[] = {
 	{ "st-256color", NULL,     NULL,           0,         0,          1,           0,        -1,      NULL },
 	{ "Codium",      NULL,     NULL,           0,         0,          0,           0,        -1,      ""  },
 	{ "eww",         NULL,     NULL,           0,         1,          0,           0,        -1,      NULL },
+	{ NULL,          "spterm",   NULL,           SPTAG(0),    1,          0,           0,        -1,      "", },
+	{ NULL,          "spfm",     NULL,           SPTAG(1),    1,          0,           0,        -1,      "", },
+	{ NULL,          "keepassxc", NULL,          SPTAG(2),    0,          0,           0,        -1,      "", },
 	{ NULL,          NULL,     "Event Tester", 0,         0,          0,           1,        -1,      NULL }, /* xev */
 };
 
@@ -165,6 +179,10 @@ static const Key keys[] = {
     { 0,                            XF86XK_MonBrightnessDown,   spawn,          SHCMD("brightnessctl set 5%-; pkill -RTMIN+2 dwmblocks") },
     // Screenshot
     { 0,                            XK_Print,                   spawn,          {.v = flameshot} },
+	// Scratchpads
+	{ MODKEY,                       XK_grave,                   togglescratch,  {.ui = 0 } },
+	{ MODKEY,                       XK_u,                       togglescratch,  {.ui = 1 } },
+	{ MODKEY,                       XK_x,                       togglescratch,  {.ui = 2 } },
 
 	TAGKEYS(                        XK_1,                      0)
 	TAGKEYS(                        XK_2,                      1)

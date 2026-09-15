@@ -2,8 +2,8 @@
 #include "../config.h"
 
 Monitor *selmon;
-static Perworkspace perworkspace_storage[LENGTH(workspaces)];
-Perworkspace *perworkspaces[LENGTH(workspaces)] = {
+static Perworkspace perworkspace_storage[NUMTAGS];
+Perworkspace *perworkspaces[NUMTAGS] = {
     &perworkspace_storage[0],
     &perworkspace_storage[1],
     &perworkspace_storage[2],
@@ -13,6 +13,7 @@ Perworkspace *perworkspaces[LENGTH(workspaces)] = {
     &perworkspace_storage[6],
     &perworkspace_storage[7],
     &perworkspace_storage[8],
+    &perworkspace_storage[9],
 };
 
 void
