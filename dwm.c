@@ -2839,24 +2839,76 @@ sigstatusbar(const Arg *arg)
 	sigqueue(statuspid, SIGRTMIN + statussig, sv);
 }
 
+/* This starts a new program by executing a given execvp command. */
 void
 spawn(const Arg *arg)
 {
 	struct sigaction sa;
 
+	/* If we are executing the dmenu command then we manipulate the value that we pass to
+	 * dmenu_run via the -m argument by setting it to the selected monitor.
+	 *
+	 * For reference here is what the dmenu command looks like in config.def.h:
+	 *
+	 *    static char dmenumon[2] = "0"; // component of dmenucmd, manipulated in spawn()
+	 *    static const char *dmenucmd[] = { "dmenu_run", "-m", dmenumon, "-fn", ...
+	 *
+	 * The reason for passing this argument to dmenu is to control which monitor dmenu spawns
+	 * on. This is likely due to legacy reasons given that dmenu is capable of working out which
+	 * monitor currently has input focus on its own. It is perfectly safe to delete the two
+	 * lines below and remove the -m argument from the command.
+	 */
 	if (arg->v == dmenucmd)
 		dmenumon[0] = '0' + selmon->num;
+
+	/* This call to fork forks the process. What this actually means is that it creates a new
+	 * (duplicate) process of the current process; in other words we end up with two dwm
+	 * processes.
+	 *
+	 * For process 1 (this process) the fork() call returns the process ID of the new process.
+	 * As such we do not enter the if statement and we return from the spawn function and dwm
+	 * eventually goes back to the event loop after checking the remaining key bindings.
+	 *
+	 * For process 2 (the new process) the fork() call returns 0 and we enter the if statement.
+	 * This then calls execvp which replaces the current process image with a new process image,
+	 * as in it becomes the new process. If the call to execvp fails for whatever reason then
+	 * it will continue to print an error and call exit to stop the process.
+	 *
+	 * Processes spawned via dwm will have the dwm process as its parent process.
+	 */
 	if (fork() == 0) {
+		/* If we have a connection to the X server then close that before proceeding. */
 		if (dpy)
 			close(ConnectionNumber(dpy));
+
+		/* The call to setsid creates a new session and sets the process group ID. This is
+		 * needed because a child created via fork inherits its parent's session ID and we
+		 * need our own because this session ID will be preserved across the execvp call. */
 		setsid();
 
+		/* This restores SIGCHLD sighandler to default before spawning a program.
+		 *
+		 * From sigaction(2):
+		 * A child created via fork(2) inherits a copy of its parent's signal dispositions.
+		 * During an execve(2), the dispositions of handled signals are reset to the default;
+		 * the dispositions of ignored signals are left unchanged.
+		 *
+		 * The reason why this is needed is that some programs would not start due to inheriting
+		 * the signal handler of dwm which ignores all signals. */
 		sigemptyset(&sa.sa_mask);
 		sa.sa_flags = 0;
 		sa.sa_handler = SIG_DFL;
 		sigaction(SIGCHLD, &sa, NULL);
 
+		/* The execvp causes the program that is currently being run (dwm in this case) to
+		 * be replaced with a new program and with a newly initialised stack, heap and data
+		 * segments. If this is successful then this is the last thing this process does in
+		 * the dwm code. */
 		execvp(((char **)arg->v)[0], (char **)arg->v);
+
+        /* If the execvp fails for whatever reason, then we are still here executing dwm
+		 * code. So we make a call to die to print an error to say that we failed to execute the
+		 * command before calling exit to ensure that this process stops running. */
 		die("dwm: execvp '%s' failed:", ((char **)arg->v)[0]);
 	}
 }
