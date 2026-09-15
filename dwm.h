@@ -70,7 +70,7 @@
 /* enums */
 enum { CurNormal, CurResize, CurMove, CurLast }; /* cursor */
 enum { SchemeNorm, SchemeSel, SchemeStatus, SchemeHid }; /* color schemes */
-enum { NetSupported, NetWMName, NetWMState, NetWMCheck,
+enum { NetSupported, NetWMName, NetWMIcon, NetWMState, NetWMCheck,
        NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
        NetWMFullscreen, NetActiveWindow, NetWMWindowType,
        NetWMWindowTypeDialog, NetClientList, NetClientInfo, NetLast }; /* EWMH atoms */
@@ -143,6 +143,8 @@ struct Client {
     unsigned int workspace;
 
 	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen, isterminal, noswallow;
+	unsigned int icw, ich;
+	Picture icon;
 	pid_t pid;
 
 	/// The next client in the client list, which is a linked list. The client list controls the
@@ -387,7 +389,9 @@ void focusmon(const Arg *arg);
 void focusstackvis(const Arg *arg);
 void focusstackhid(const Arg *arg);
 void focusstack(int inc, int hid);
+void freeicon(Client *c);
 Atom getatomprop(Client *c, Atom prop);
+Picture geticonprop(Window win, unsigned int *picw, unsigned int *pich);
 pid_t getstatusbarpid(void);
 int getrootptr(int *x, int *y);
 long getstate(Window w);
@@ -468,6 +472,7 @@ void updatesystray(void);
 void updatesystrayicongeom(Client *i, int w, int h);
 void updatesystrayiconstate(Client *i, XPropertyEvent *ev);
 void updatetitle(Client *c);
+void updateicon(Client *c);
 void updatewindowtype(Client *c);
 void updatewmhints(Client *c);
 void view(const Arg *arg);

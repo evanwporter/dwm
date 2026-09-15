@@ -30,6 +30,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -1032,7 +1034,9 @@ drawbar(Monitor *m)
 				scm = m->sel == c ? SchemeSel : HIDDEN(c) ? SchemeHid : SchemeNorm;
 				drw_setscheme(drw, scheme[scm]);
 				int cw = tabw + (remainder-- > 0 ? 1 : 0);
-				drw_text(drw, x, 0, cw, bh, lrpad / 2, c->name, 0);
+				drw_text(drw, x, 0, cw, bh, lrpad / 2 + (c->icon ? c->icw + ICONSPACING : 0), c->name, 0);
+				if (c->icon)
+					drw_pic(drw, x + lrpad / 2, (bh - c->ich) / 2, c->icw, c->ich, c->icon);
 				x += cw;
 			}
 		} else {
@@ -1231,6 +1235,63 @@ getatomprop(Client *c, Atom prop)
 		XFree(p);
 	}
 	return atom;
+}
+
+static uint32_t
+prealpha(uint32_t pixel)
+{
+	uint8_t alpha = pixel >> 24;
+	uint32_t rb = (alpha * (pixel & 0x00ff00ffU)) >> 8;
+	uint32_t g = (alpha * (pixel & 0x0000ff00U)) >> 8;
+	return (pixel & 0xff000000U) | (rb & 0x00ff00ffU) | (g & 0x0000ff00U);
+}
+
+Picture
+geticonprop(Window win, unsigned int *picw, unsigned int *pich)
+{
+	int format;
+	unsigned long nitems, extra;
+	unsigned long *data = NULL, *best = NULL, *cursor, *end;
+	Atom actual;
+	uint32_t w, h, pixels, best_delta = UINT32_MAX;
+
+	if (XGetWindowProperty(dpy, win, netatom[NetWMIcon], 0L, LONG_MAX, False,
+		AnyPropertyType, &actual, &format, &nitems, &extra,
+		(unsigned char **)&data) != Success || !data || format != 32)
+		return None;
+	end = data + nitems;
+	for (cursor = data; cursor + 2 <= end;) {
+		w = *cursor++;
+		h = *cursor++;
+		if (!w || !h || w >= 16384 || h >= 16384 || w > UINT32_MAX / h || w * h > (uint32_t)(end - cursor))
+			break;
+		pixels = w * h;
+		uint32_t side = w > h ? w : h;
+		uint32_t delta = side >= ICONSIZE ? side - ICONSIZE : ICONSIZE - side;
+		if (delta < best_delta) {
+			best_delta = delta;
+			best = cursor;
+		}
+		cursor += pixels;
+	}
+	if (!best) {
+		XFree(data);
+		return None;
+	}
+	w = *(best - 2);
+	h = *(best - 1);
+	if (w <= h) {
+		*pich = ICONSIZE;
+		*picw = MAX(1, w * ICONSIZE / h);
+	} else {
+		*picw = ICONSIZE;
+		*pich = MAX(1, h * ICONSIZE / w);
+	}
+	for (pixels = 0; pixels < w * h; pixels++)
+		((uint32_t *)best)[pixels] = prealpha(best[pixels]);
+	Picture icon = drw_picture_create_resized(drw, (char *)best, w, h, *picw, *pich);
+	XFree(data);
+	return icon;
 }
 
 pid_t
@@ -1498,6 +1559,7 @@ manage(Window w, XWindowAttributes *wa)
 	 * unmanaging a client that is not destroyed. */
 	c->oldbw = wa->border_width;
 
+	updateicon(c);
 	/* Reads and stores the window title in the client's name variable. */
 	updatetitle(c);
 
@@ -1826,6 +1888,11 @@ propertynotify(XEvent *e)
 		}
 		if (ev->atom == XA_WM_NAME || ev->atom == netatom[NetWMName]) {
 			updatetitle(c);
+			if (c == c->mon->sel)
+				drawbar(c->mon);
+		}
+		if (ev->atom == netatom[NetWMIcon]) {
+			updateicon(c);
 			if (c == c->mon->sel)
 				drawbar(c->mon);
 		}
@@ -2570,6 +2637,7 @@ setup(void)
 	netatom[NetSystemTrayOrientation] = XInternAtom(dpy, "_NET_SYSTEM_TRAY_ORIENTATION", False);
 	netatom[NetSystemTrayOrientationHorz] = XInternAtom(dpy, "_NET_SYSTEM_TRAY_ORIENTATION_HORZ", False);
     netatom[NetWMName] = XInternAtom(dpy, "_NET_WM_NAME", False);
+	netatom[NetWMIcon] = XInternAtom(dpy, "_NET_WM_ICON", False);
 	netatom[NetWMState] = XInternAtom(dpy, "_NET_WM_STATE", False);
 	netatom[NetWMCheck] = XInternAtom(dpy, "_NET_SUPPORTING_WM_CHECK", False);
 	netatom[NetWMFullscreen] = XInternAtom(dpy, "_NET_WM_STATE_FULLSCREEN", False);
@@ -3007,6 +3075,7 @@ unmanage(Client *c, int destroyed)
 	/* Remove the given client from both the client list and the stack order list. */
 	detach(c);
 	detachstack(c);
+	freeicon(c);
 
     treenode_remove(c);
 
@@ -3453,6 +3522,22 @@ updatetitle(Client *c)
 		gettextprop(c->win, XA_WM_NAME, c->name, sizeof c->name);
 	if (c->name[0] == '\0') /* hack to mark broken clients */
 		strcpy(c->name, broken);
+}
+
+void
+freeicon(Client *c)
+{
+	if (c->icon) {
+		XRenderFreePicture(dpy, c->icon);
+		c->icon = None;
+	}
+}
+
+void
+updateicon(Client *c)
+{
+	freeicon(c);
+	c->icon = geticonprop(c->win, &c->icw, &c->ich);
 }
 
 void

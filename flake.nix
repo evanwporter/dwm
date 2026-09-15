@@ -29,6 +29,7 @@
 								libxcb
 								libxft
 								libxinerama
+								imlib2
 							];
 
 							installFlags = ["PREFIX=$(out)"];

@@ -92,6 +92,9 @@ static const Layout layouts[] = {
 
 #define STATUSBAR "dwmblocks"
 
+#define ICONSIZE bh /* icon size */
+#define ICONSPACING 15 /* space between icon and title */
+
 /* commands */
 static char dmenumon[2] = "0"; /* component of dmenucmd, manipulated in spawn() */
 static const char *dmenucmd[] = { 
