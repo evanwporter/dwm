@@ -106,7 +106,6 @@ static const char *dmenucmd[] = {
     NULL 
 };
 static const char *termcmd[]  = { "/bin/sh", "-c", "exec \"$TERMINAL\"", NULL };
-static const char *networkcmd[] = { "nm-connection-editor", NULL };
 static const char *flameshot[] = {
   "flameshot", "gui", NULL
 };

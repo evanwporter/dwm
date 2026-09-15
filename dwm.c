@@ -451,7 +451,8 @@ buttonpress(XEvent *e)
 					text = s + 1;
 					if (x >= ev->x)
 						break;
-					statussig = ch;
+					/* 31 is a dwmblocks reset marker: subsequent text is not clickable. */
+					statussig = ch == 31 ? 0 : ch;
 				} else if (*s == '^') {
 					*s = '\0';
 					x += TEXTW(text) - lrpad;
@@ -462,12 +463,6 @@ buttonpress(XEvent *e)
 					text = s;
 					s--;
 				}
-			}
-			/* The Wi-Fi block is the rightmost status item. */
-			if (ev->button == Button1
-			&& ev->x >= selmon->ww - getsystraywidth() - (int)TEXTW("󰖪 ")) {
-				spawn(&(Arg){.v = networkcmd});
-				return;
 			}
 		}
 		else {
