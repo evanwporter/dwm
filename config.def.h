@@ -69,7 +69,7 @@ static const Rule rules[] = {
 	{ .class = "Gimp", .isfloating = 1, .icon = "" },
 	{ .class = "firefox", .icon = "󰈹"  },
 	{ .class = "kitty", .isterminal = 1, .icon = "󰄛"  },
-    { .class = "st-256color", .isterminal = 1 },
+    { .class = "st-256color", .isterminal = 1, .icon = "" },
     { .class = "Codium", .icon = "" },
     { .class = "eww", .isfloating = 1 },
     // { .class = "spotify", .icon = "" },
