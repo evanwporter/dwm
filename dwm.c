@@ -97,7 +97,7 @@ Drw *drw;
 Monitor *mons, *selmon;
 Window root, wmcheckwin;
 xcb_connection_t *xcon;
-Perworkspace *perworkspaces[LENGTH(workspaces)];
+Perworkspace *perworkspaces[NUMTAGS];
 
 // ┌──────────┬──────┬─────────────────────────────────────────┬──────────────┬────────┐
 // │ 1 2 3    │[]=]  │  vim │  firefox │  terminal             │ 10:30 AM     │ WIFI   │
@@ -179,6 +179,8 @@ applyrules(Client *c)
 	c->isfloating = 0;
     c->workspace = 0;
 	c->tags = 0;
+    c->icon = NULL;
+    c->scratchpad = 0;
 
 	/* This reads the class hint for the client's window. As in this property of
 	 * the window:
@@ -215,11 +217,13 @@ applyrules(Client *c)
 
 			// Sets the workspace
 			c->workspace = r->workspace;
+			if (IS_SCRATCHPAD_WORKSPACE(r->workspace))
+				c->scratchpad = r->workspace - LENGTH(workspaces);
 
 			c->icon = r->icon;
 
 			/* If this is a scratchpad and it's floating, center it */
-			if ((r->workspace & SPTAGMASK) && r->isfloating) {
+			if (IS_SCRATCHPAD_WORKSPACE(r->workspace) && r->isfloating) {
 				c->x = c->mon->wx + (c->mon->ww / 2 - WIDTH(c) / 2);
 				c->y = c->mon->wy + (c->mon->wh / 2 - HEIGHT(c) / 2);
 			}
@@ -247,9 +251,12 @@ applyrules(Client *c)
 	if (ch.res_name)
 		XFree(ch.res_name);
 
-	/* This guard checks whether the client is to be shown on a valid workspace. If it is not
-	 * then we show the client on whatever workspace the client's monitor has active, but excluding
-	 * scratchpad workspaces (SPTAGMASK). Scratchpads are only assigned via explicit rules. */
+	/* Floating scratchpads live on the current workspace while their scratchpad identifier
+	 * remains in c->scratchpad. Tiled scratchpads retain their dedicated workspace. */
+	if (c->scratchpad && c->isfloating)
+		c->workspace = c->mon->selected_workspaces[c->mon->sel_ws];
+
+	/* A client without a valid explicit workspace opens on the active workspace. */
 	c->workspace = c->workspace && CHECK_WS_BOUNDS(c->workspace)
         ? c->workspace
         : c->mon->selected_workspaces[c->mon->sel_ws];
@@ -583,7 +590,7 @@ cleanup(void)
 	for (i = 0; i < LENGTH(colors) + 1; i++)
 		drw_scm_free(drw, scheme[i], 3);
 
-    for (i = 0; i < LENGTH(workspaces); i++)
+    for (i = 0; i < NUMTAGS; i++)
         free(perworkspaces[i]);
 
 	/* Free the memory used for the scheme struct as well */
@@ -1042,7 +1049,13 @@ drawbar(Monitor *m)
 			urg |= WORKSPACEBIT(c->workspace);
 	}
 
+	/* This could have been initialised earlier to save on a single line of code, but as it
+	 * stands it clearly indicates that here we start to draw from the beginning of the bar.
+	 * This is a clarification following the above where we started drawing the status on the
+	 * opposite side of the bar. */
 	x = 0;
+
+	/* We start by looping through all tags. */
 	for (i = 0; i < LENGTH(workspaces); i++) {
         /* Do not draw vacant tags */
         if (!(occ & (1U << i) || i + 1 == m->selected_workspaces[m->sel_ws]))
@@ -1051,15 +1064,73 @@ drawbar(Monitor *m)
 		/* The user can define their own tag symbols (or text) so the width of each tag can
 		 * differ from tag to tag. */
 		w = TEXTW(workspaces[i]);
+
+		/* Here we set the colour scheme to use when drawing the tag text. The gist of it is
+		 * that we use SchemeSel if the tag is being viewed and SchemeNorm otherwise.
+		 *
+		 *    m->tagset[m->seltags] - this is the bitmask representing the viewed tags
+		 *    1 << i                - this represents the bitmask for the tag we are
+		 *                            currently processing
+		 *    m->tags... & 1 << i   - the intersection between the two binaries will be true
+		 *                            if the current tag is viewed
+		 *
+		 * After which we end up with either:
+		 *
+		 *    drw_setscheme(drw, scheme[SchemeSel]);
+		 * or
+		 *    drw_setscheme(drw, scheme[SchemeNorm]);
+		 */
 		drw_setscheme(drw, scheme[i + 1 == m->selected_workspaces[m->sel_ws] ? SchemeSel : SchemeNorm]);
+
+		/* Draw the tag text (tags[i]). Note the last argument which inverts the colours of
+		 * the tag if it is occupied by an urgent client. Invert in this context means to
+		 * swap the foreground and background colours when drawing the text.
+		 *
+		 *    urg          - this is the bitmask representing tags with urgent clients
+		 *    1 << i       - this represents the bitmask for the tag we are currently
+		 *                   processing
+		 *    urg & 1 << i - the intersection between the two binaries will be true if the
+		 *                   current tag has urgent clients
+		 */
 		drw_text(drw, x, 0, w, bh, lrpad / 2, workspaces[i], urg & (1U << i));
+        
+        /* We are done drawing, move our draw "cursor" to the next tag. */
 		x += w;
 	}
+
+    /* Find each scratchpad client. Unlabelled pads stay out of the strip. */
+    Client *scratchpad_occupied[LENGTH(scratchpads)] = {NULL};
+
+    for (c = m->clients; c; c = c->next) {
+        for (unsigned int i = 0; i < LENGTH(scratchpads); i++)
+        if (c->scratchpad == i + 1) {
+          scratchpad_occupied[i] = c;
+          break;
+        }
+    }
+
+	for (i = 0; i < LENGTH(scratchpads); i++) {
+		c = scratchpad_occupied[i];
+		if (!c || !c->icon || !*c->icon)
+			continue;
+
+		w = TEXTW(c->icon);
+		drw_setscheme(drw, scheme[ISVISIBLE(c) ? SchemeSel : SchemeNorm]);
+		drw_text(drw, x, 0, w, bh, lrpad / 2, c->icon, c->isurgent);
+		x += w;
+	}
+
+    // The width of the layout symbol.
 	w = TEXTW(PERWS(m)->ltsymbol);
+
+    /* Reset the colour scheme back to normal. */
 	drw_setscheme(drw, scheme[SchemeNorm]);
+
+	/* Just draw the layout symbol. Note how the drw_text function returns how far the cursor
+	 * moved while drawing the text. */
 	x = drw_text(drw, x, 0, w, bh, lrpad / 2, PERWS(m)->ltsymbol, 0);
 
-	/// Draw window titles
+	// Draw window titles
 	/* This checks if there is any space left to draw the window title (while setting w to the
 	 * remaining width at the same time). */
 	if ((w = m->ww - tw - stw - x) > bh) {
@@ -1588,10 +1659,14 @@ manage(Window w, XWindowAttributes *wa)
 		/* Search for matching client rules and apply those to the given client. */
 		applyrules(c);
 
-		/* Assign the client to the currently viewed workspace on its monitor. */
-		c->workspace = c->mon->selected_workspaces[c->mon->sel_ws];
-
 		term = termforwin(c);
+	}
+
+	/* Tiled scratchpads are dedicated workspaces. Switch to that workspace as the
+	 * window appears; floating pads stay on the workspace active at launch. */
+	if (c->scratchpad && !c->isfloating) {
+		c->mon->sel_ws ^= 1;
+		c->mon->selected_workspaces[c->mon->sel_ws] = c->workspace;
 	}
 
 	if (c->x + WIDTH(c) > c->mon->wx + c->mon->ww)
@@ -1613,7 +1688,7 @@ manage(Window w, XWindowAttributes *wa)
 	if (XGetWindowProperty(dpy, c->win, netatom[NetClientInfo], 0L, 2L, False,
 		XA_CARDINAL, &actual, &format, &n, &extra, (unsigned char **)&data) == Success
 	    && actual == XA_CARDINAL && format == 32 && n == 2 && (0 <= data[0] && 
-        1 <= data[0] && data[0] <= LENGTH(workspaces))) {
+        1 <= data[0] && data[0] <= NUMTAGS)) {
         // data is { workspace, monitor # }
 		c->workspace = data[0];
 		for (m = mons; m; m = m->next)
@@ -2570,7 +2645,7 @@ setup(void)
     bh = drw->fonts->h + vertpadbar;
 
     /// Allocate the array of Pertags
-    for (int i = 0; i < LENGTH(workspaces); i++) {
+    for (int i = 0; i < NUMTAGS; i++) {
         perworkspaces[i] = ecalloc(1, sizeof(Perworkspace));
 
         /* We set the default master / stack factor, number of clients in the master area, whether
@@ -2798,7 +2873,7 @@ showhide(Client *c)
 
 	if (ISVISIBLE(c)) {
 		/* Center scratchpads when showing them */
-		if ((c->workspace & SPTAGMASK) && c->isfloating) {
+		if (c->scratchpad && c->isfloating) {
 			c->x = c->mon->wx + (c->mon->ww / 2 - WIDTH(c) / 2);
 			c->y = c->mon->wy + (c->mon->wh / 2 - HEIGHT(c) / 2);
 		}
@@ -3076,14 +3151,28 @@ void
 togglescratch(const Arg *arg)
 {
     Client *c;
-    unsigned int found = 0;
     unsigned int scratchworkspace = SPTAG(arg->ui);
     Arg sparg = {.v = scratchpads[arg->ui].cmd};
 
-    /* Search for a client with the scratchpad workspace */
-    for (c = selmon->clients; c && !(found = c->workspace == scratchworkspace); c = c->next);
+    /* Search by persistent identity: floating pads change workspaces when shown. */
+    for (c = selmon->clients; c && c->scratchpad != arg->ui + 1; c = c->next);
 
-    if (found) {
+    if (c) {
+		if (c->isfloating) {
+			if (ISVISIBLE(c))
+				c->workspace = scratchworkspace;
+			else {
+				c->workspace = selmon->selected_workspaces[selmon->sel_ws];
+				c->x = c->mon->wx + (c->mon->ww / 2 - WIDTH(c) / 2);
+				c->y = c->mon->wy + (c->mon->wh / 2 - HEIGHT(c) / 2);
+			}
+			focus(ISVISIBLE(c) ? c : NULL);
+			arrange(selmon);
+			if (ISVISIBLE(c))
+				restack(selmon);
+			return;
+		}
+
         /* If found, toggle its visibility by switching workspaces */
         if (ISVISIBLE(c)) {
             /* Currently visible - switch away to hide it */
@@ -3093,14 +3182,12 @@ togglescratch(const Arg *arg)
             arrange(selmon);
         } else {
             /* Not visible - switch to scratchpad workspace to show it */
-            selmon->selected_workspaces[selmon->sel_ws] = scratchworkspace;
+            viewworkspace(&(Arg){.ui = scratchworkspace});
             focus(c);
-            arrange(selmon);
             restack(selmon);
         }
     } else {
-        /* Scratchpad window doesn't exist - spawn it and switch to its workspace */
-        selmon->selected_workspaces[selmon->sel_ws] = scratchworkspace;
+        /* applyrules selects the dedicated workspace for tiled pads. */
         spawn(&sparg);
     }
 }

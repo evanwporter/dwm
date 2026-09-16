@@ -40,14 +40,15 @@
 #define NUMTAGS                 (LENGTH(workspaces) + LENGTH(scratchpads))
 #define WORKSPACEMASK           ((1 << LENGTH(workspaces)) - 1)
 #define WORKSPACEBIT(W)         (1U << ((W) - 1))
-#define SPTAG(i)                ((1 << LENGTH(workspaces)) << (i))
-#define SPTAGMASK               (((1 << LENGTH(scratchpads))-1) << LENGTH(workspaces))
+#define SPTAG(i)                (LENGTH(workspaces) + (i) + 1)
+#define IS_SCRATCHPAD_WORKSPACE(W) \
+	((W) > LENGTH(workspaces) && (W) <= NUMTAGS)
 #define PERWORKSPACE(M)         (perworkspaces[(M)->selected_workspaces[(M)->sel_ws] - 1])
 #define PERWS(M)                PERWORKSPACE(M)
 
 /// Check workspace bounds
-///    1 <= W <= LENGTH(workspaces)
-#define CHECK_WS_BOUNDS(W)      (1 <= (W) && (W) <= LENGTH(workspaces))
+///    1 <= W <= NUMTAGS
+#define CHECK_WS_BOUNDS(W)      (1 <= (W) && (W) <= NUMTAGS)
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
 
 #define MWM_HINTS_FLAGS_FIELD       0
@@ -149,6 +150,9 @@ struct Client {
 
     /// The workspace the client is attached too
     unsigned int workspace;
+
+    /// Non-zero scratchpad identifier; retained while a floating pad moves workspaces.
+    unsigned int scratchpad;
 
 	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen, isterminal, noswallow;
 	pid_t pid;
@@ -373,7 +377,7 @@ typedef struct {
 	int isterminal;
 	int noswallow;
 	int monitor;
-    const char *icon;
+    char *icon;
 } Rule;
 
 typedef struct Systray   Systray;
