@@ -52,14 +52,10 @@ static const char *colors[][3] = {
 };
 
 /* scratchpads */
-const char *spcmd1[] = {"kitty", "--class", "spterm", NULL };
-const char *spcmd2[] = {"kitty", "--class", "spfm", "-e", "ranger", NULL };
-const char *spcmd3[] = {"keepassxc", NULL };
+static const char *spcmd1[] = {"spotify", NULL };
 static Sp scratchpads[] = {
 	/* name          cmd  */
-	{"spterm",      spcmd1},
-	{"spranger",    spcmd2},
-	{"keepassxc",   spcmd3},
+	{"sp_spotify",      spcmd1},
 };
 
 /* tagging */
@@ -70,17 +66,15 @@ static const Rule rules[] = {
 	 *	WM_CLASS(STRING) = instance, class
 	 *	WM_NAME(STRING) = title
 	 */
-	/* class         instance  title           workspace  isfloating  isterminal  noswallow  monitor  icon*/
-	{ "Gimp",        NULL,     NULL,           0,         1,          0,           0,        -1,      "󰈹"  },
-	{ "Firefox",     NULL,     NULL,           0,         0,          0,          -1,        -1,      "󰄛"  },
-	{ "kitty",       NULL,     NULL,           0,         0,          1,           0,        -1,      ""  },
-	{ "st-256color", NULL,     NULL,           0,         0,          1,           0,        -1,      NULL },
-	{ "Codium",      NULL,     NULL,           0,         0,          0,           0,        -1,      ""  },
-	{ "eww",         NULL,     NULL,           0,         1,          0,           0,        -1,      NULL },
-	{ NULL,          "spterm",   NULL,           SPTAG(0),    1,          0,           0,        -1,      "", },
-	{ NULL,          "spfm",     NULL,           SPTAG(1),    1,          0,           0,        -1,      "", },
-	{ NULL,          "keepassxc", NULL,          SPTAG(2),    0,          0,           0,        -1,      "", },
-	{ NULL,          NULL,     "Event Tester", 0,         0,          0,           1,        -1,      NULL }, /* xev */
+	{ .class = "Gimp", .isfloating = 1, .icon = "" },
+	{ .class = "firefox", .icon = "󰈹"  },
+	{ .class = "kitty", .isterminal = 1, .icon = "󰄛"  },
+    { .class = "st-256color", .isterminal = 1 },
+    { .class = "Codium", .icon = "" },
+    { .class = "eww", .isfloating = 1 },
+    // { .class = "spotify", .icon = "" },
+    { .instance = "spotify", .workspace = SPTAG(0), .icon = "" },
+    { .title = "Event Tester", .noswallow = 1 }, /* xev */
 };
 
 /* layout(s) */
@@ -162,7 +156,8 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
 	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
-	{ MODKEY,                       XK_s,      show,           {0} },
+    /// TODO: Do something about the show/hide feat in awesomebar
+	// { MODKEY,                       XK_s,      show,           {0} },
 	{ MODKEY|ShiftMask,             XK_s,      showall,        {0} },
 	// { MODKEY|ControlMask,           XK_h,      hide,           {0} },
 	// { MODKEY|ControlMask,           XK_l,      spawn,          SHCMD("/run/wrappers/bin/slock") },
@@ -180,9 +175,7 @@ static const Key keys[] = {
     // Screenshot
     { 0,                            XK_Print,                   spawn,          {.v = flameshot} },
 	// Scratchpads
-	{ MODKEY,                       XK_grave,                   togglescratch,  {.ui = 0 } },
-	{ MODKEY,                       XK_u,                       togglescratch,  {.ui = 1 } },
-	{ MODKEY,                       XK_x,                       togglescratch,  {.ui = 2 } },
+	{ MODKEY,                       XK_s,                       togglescratch,  {.ui = 0 } },
 
 	TAGKEYS(                        XK_1,                      0)
 	TAGKEYS(                        XK_2,                      1)
