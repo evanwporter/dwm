@@ -72,7 +72,8 @@ static const Rule rules[] = {
     { .class = "st-256color", .isterminal = 1, .icon = "" },
     { .class = "codium", .icon = "" },
     { .class = "eww", .isfloating = 1 },
-    // { .class = "spotify", .icon = "" },
+    // TODO: setting workspace to SPTAG(0) makes spotify always launch in the scratchpad
+    // regardless of where I launch. This behavior may not be ideal.
     { .instance = "spotify", .workspace = SPTAG(0), .icon = "" },
     { .title = "Event Tester", .noswallow = 1 }, /* xev */
 };
@@ -106,6 +107,8 @@ static const Layout layouts[] = {
 
 /* commands */
 static char dmenumon[2] = "0"; /* component of dmenucmd, manipulated in spawn() */
+
+// TODO: think about baking in the color commands into `dmenu_desktop_run`
 static const char *dmenucmd[] = { 
     "dmenu_desktop_run",
     "-i",
