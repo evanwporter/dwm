@@ -70,7 +70,7 @@ static const Rule rules[] = {
 	{ .class = "firefox", .icon = "󰈹"  },
 	{ .class = "kitty", .isterminal = 1, .icon = "󰄛"  },
     { .class = "st-256color", .isterminal = 1, .icon = "" },
-    { .class = "Codium", .icon = "" },
+    { .class = "codium", .icon = "" },
     { .class = "eww", .isfloating = 1 },
     // { .class = "spotify", .icon = "" },
     { .instance = "spotify", .workspace = SPTAG(0), .icon = "" },
