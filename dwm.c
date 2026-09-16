@@ -217,13 +217,13 @@ applyrules(Client *c)
 
 			// Sets the workspace
 			c->workspace = r->workspace;
-			if (IS_SCRATCHPAD_WORKSPACE(r->workspace))
+			if (IS_SP_WORKSPACE(r->workspace))
 				c->scratchpad = r->workspace - LENGTH(workspaces);
 
 			c->icon = r->icon;
 
 			/* If this is a scratchpad and it's floating, center it */
-			if (IS_SCRATCHPAD_WORKSPACE(r->workspace) && r->isfloating) {
+			if (IS_SP_WORKSPACE(r->workspace) && r->isfloating) {
 				c->x = c->mon->wx + (c->mon->ww / 2 - WIDTH(c) / 2);
 				c->y = c->mon->wy + (c->mon->wh / 2 - HEIGHT(c) / 2);
 			}
