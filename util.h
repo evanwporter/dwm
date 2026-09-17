@@ -1,4 +1,6 @@
 /* See LICENSE file for copyright and license details. */
+#ifndef DWM_UTIL_H
+#define DWM_UTIL_H
 
 #include <stddef.h>
 
@@ -9,3 +11,5 @@
 
 void die(const char *fmt, ...);
 void *ecalloc(size_t nmemb, size_t size);
+
+#endif // DWM_UTIL_H

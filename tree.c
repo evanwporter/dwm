@@ -3,6 +3,7 @@
 #include "dwm.h"
 #include "tree.h"
 #include "config.h"
+#include "util.h"
 
 static void
 tree_recurse(const TreeNode *node, int x, int y, int w, int h, int bw)
@@ -14,6 +15,8 @@ tree_recurse(const TreeNode *node, int x, int y, int w, int h, int bw)
         return;
     }
 
+    const double proportion = node->proportion / 100.0;
+
     /// TODO: If there's an odd number of pixels then there's a one pixel gap
     if (node->stacked) {
         // Stacked vertically: a on top, b on bottom
@@ -22,15 +25,15 @@ tree_recurse(const TreeNode *node, int x, int y, int w, int h, int bw)
         //  ├─────────┤
         //  │    b    │
         //  └─────────┘
-        tree_recurse(node->a, x, y, w, h / 2, bw); // Top half
-        tree_recurse(node->b, x, y + h / 2, w, h / 2, bw); // Bottom half
+        tree_recurse(node->a, x, y, w, h * proportion, bw); // Top half
+        tree_recurse(node->b, x, y + h * proportion, w, h * (1 - proportion), bw); // Bottom half
     } else {
         // Side by side: a on left, b on right
         //  ┌─────┬─────┐
         //  │  a  │  b  │
         //  └─────┴─────┘
-        tree_recurse(node->a, x, y, w / 2, h, bw); // Left half
-        tree_recurse(node->b, x + w / 2, y, w / 2, h, bw); // Right half
+        tree_recurse(node->a, x, y, w * proportion, h, bw); // Left half
+        tree_recurse(node->b, x + w * proportion, y, w * (1 - proportion), h, bw); // Right half
     }
 }
 
@@ -205,6 +208,7 @@ treenode_internal_add(Client *c, Client *focused)
         // Early Exit if there is no root node
         c->node = ecalloc(1, sizeof(*c->node));
         c->node->client = c;
+        c->node->proportion = 50;
         perworkspaces[c->workspace - 1]->root = c->node;
         return;
     }
@@ -219,9 +223,11 @@ treenode_internal_add(Client *c, Client *focused)
     node_a->client = focused;
     node_a->is_A = 1;
     node_a->parent = focused_node;
+    node_a->proportion = 50;
 
     node_b->client = c;
     node_b->parent = focused_node;
+    node_b->proportion = 50;
 
     focused->node = node_a;
     c->node = node_b;
@@ -233,6 +239,7 @@ treenode_internal_add(Client *c, Client *focused)
     focused_node->a = node_a;
     focused_node->b = node_b;
     focused_node->client = NULL;
+    focused_node->proportion = 50;
 }
 
 void
@@ -252,6 +259,34 @@ treenode_add(Client *c)
         treenode_auto_add(c);
 }
 
+// TODO: Merge this function and the ascend part of the next one (navigate tree)
+
+static TreeNode*
+tree_find_crossing_point(TreeNode* node, int dir)
+{
+    // Direction Mapping: 0 = LEFT, 1 = DOWN, 2 = UP, 3 = RIGHT
+    int is_vertical   = (dir == 1 || dir == 2); // Axis: 1 for V-splits, 0 for H-splits
+    int coming_from_a = (dir == 1 || dir == 3); // DOWN and RIGHT require coming from 'a'
+
+    TreeNode *curr = node;
+    TreeNode *parent = node->parent;
+
+    // ASCENT: Climb until we find a split along our movement axis that we can cross
+    while (parent) {
+        if (parent->stacked == is_vertical) {
+            // Split is along our movement axis:
+            // Check if we are currently on the starting side of the split
+            if (curr->is_A == coming_from_a) {
+                return parent;
+            }
+        }
+
+        curr = parent;
+        parent = parent->parent;
+    }
+    return NULL;
+}
+
 static TreeNode *
 navigate_tree(TreeNode *node, int dir)
 {
@@ -268,6 +303,7 @@ navigate_tree(TreeNode *node, int dir)
     TreeNode *curr = node;
     TreeNode *parent = node->parent;
 
+    // TODO: Replace this block of text with tree_find_crossing_point
     // ASCENT: Climb until we find a split along our movement axis that we can cross
     while (parent) {
         if (parent->stacked == is_vertical) {
@@ -318,6 +354,21 @@ navigate_tree(TreeNode *node, int dir)
     }
 
     return curr;
+}
+
+void
+tree_focus_neighbor(const Arg *arg)
+{
+    Client *sel = selmon->sel;
+    if (!sel || !sel->node)
+        return;
+
+    TreeNode *target = navigate_tree(sel->node, arg->i);
+
+    if (target && target->client) {
+        focus(target->client);
+        restack(selmon);
+    }
 }
 
 /// Move node across tree
@@ -409,4 +460,29 @@ treenode_auto_add(Client *c)
     TreeNode *node = closest_leaf(c->workspace);
     Client *focused = node ? node->client : NULL;
     treenode_internal_add(c, focused);
+}
+
+void
+tree_change_proportion(const Arg *arg)
+{
+    if (!selmon || !selmon->sel || !selmon->sel->node)
+        return;
+
+    TreeNode *crossing_node = tree_find_crossing_point(selmon->sel->node, arg->i);
+
+    if (!crossing_node)
+        return;
+
+    switch (arg->i) {
+        case 0: // Left
+        case 2: // Up
+            crossing_node->proportion = MAX(5, crossing_node->proportion - 5);
+            break;
+        case 1: // Down
+        case 3: // Right
+            crossing_node->proportion = MIN(95, crossing_node->proportion + 5);
+            break;
+    }
+
+    arrange(selmon);
 }

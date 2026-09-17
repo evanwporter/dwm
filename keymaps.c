@@ -1,4 +1,5 @@
 #include "dwm.h"
+#include "tree.h"
 
 #include <string.h>
 
