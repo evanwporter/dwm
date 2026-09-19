@@ -53,6 +53,9 @@ static const char *colors[][3] = {
 	[SchemeHid]    = { selbgcolor, normbgcolor, selbgcolor },
 };
 
+#define MOVE_CANVAS_STEP 120
+#define COORDINATES_DIVISOR 10
+
 /* scratchpads */
 static const char *spcmd1[] = {"spotify", NULL };
 static Sp scratchpads[] = {
@@ -140,10 +143,10 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask,             XK_j,      key_shift_move,  {.i = 1 } },
 	{ MODKEY|ShiftMask,             XK_k,      key_shift_move,  {.i = 2 } },
 	{ MODKEY|ShiftMask,             XK_l,      key_shift_move,  {.i = 3 } },
-    { MODKEY|ShiftMask,             XK_Left,   treenode_move_node, {.i = 0} },
-    { MODKEY|ShiftMask,             XK_Down,   treenode_move_node, {.i = 1} },
-    { MODKEY|ShiftMask,             XK_Up,     treenode_move_node, {.i = 2} },
-    { MODKEY|ShiftMask,             XK_Right,  treenode_move_node, {.i = 3} },
+    { MODKEY|ShiftMask,             XK_Left,   movecanvas, {.i = 0} },
+    { MODKEY|ShiftMask,             XK_Down,   movecanvas, {.i = 3} },
+    { MODKEY|ShiftMask,             XK_Up,     movecanvas, {.i = 2} },
+    { MODKEY|ShiftMask,             XK_Right,  movecanvas, {.i = 1} },
     { MODKEY,                       XK_Left,   tree_change_proportion, {.i = 0}},
     { MODKEY,                       XK_Down,   tree_change_proportion, {.i = 1}},
     { MODKEY,                       XK_Up,     tree_change_proportion, {.i = 2}},
@@ -156,7 +159,7 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[1]} },
 	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[2]} },
-    { MODKEY,                       XK_r,      setlayout,      {.v = &layouts[3]} },
+    { MODKEY,                       XK_r,      homecanvas,     {0} },
 	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
     // TODO: Use workspace instead
@@ -165,6 +168,7 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
 	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
+	{ MODKEY|ShiftMask,             XK_d,      centerwindow,   {0} },
     /// TODO: Do something about the show/hide feat in awesomebar
 	// { MODKEY,                       XK_s,      show,           {0} },
 	{ MODKEY|ShiftMask,             XK_s,      showall,        {0} },
@@ -213,6 +217,8 @@ static const Button buttons[] = {
 	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0} },
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
 	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
+	{ ClkRootWin,           MODKEY|ShiftMask, Button1,       manuallymovecanvas, {0} },
+	{ ClkClientWin,         MODKEY|ShiftMask, Button1,       manuallymovecanvas, {0} },
 	{ ClkTagBar,            0,              Button1,        viewworkspace,  {0} },
     // TODO: Use workspace instead
     // { ClkTagBar,            0,              Button3,        toggleview,     {0} },

@@ -154,6 +154,7 @@ struct Client {
     unsigned int scratchpad;
 
 	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen, isterminal, noswallow;
+	int saved_cx, saved_cy, saved_cw, saved_ch, was_on_canvas;
 	pid_t pid;
 
 	/// The next client in the client list, which is a linked list. The client list controls the
@@ -191,6 +192,10 @@ typedef struct {
 	const char *symbol;
 	void (*arrange)(Monitor *);
 } Layout;
+
+typedef struct {
+	int cx, cy, saved_cx, saved_cy;
+} CanvasOffset;
 
 struct Monitor {
     /* This represents the monitor number, or the monitor index if you wish. */
@@ -270,6 +275,7 @@ struct Monitor {
     unsigned int selected_workspaces[2];
 
     int sel_ws;
+	CanvasOffset *canvas;
 
 	int hidsel;
 
@@ -387,6 +393,12 @@ struct Systray {
 
 /* function declarations */
 void applyrules(Client *c);
+void movecanvas(const Arg *arg);
+void manuallymovecanvas(const Arg *arg);
+void homecanvas(const Arg *arg);
+void save_canvas_positions(Monitor *m);
+void restore_canvas_positions(Monitor *m);
+void centerwindow(const Arg *arg);
 int applysizehints(Client *c, int *x, int *y, int *w, int *h, int *bw, int interact);
 void arrange(Monitor *m);
 void arrangemon(Monitor *m);

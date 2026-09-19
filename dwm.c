@@ -57,6 +57,7 @@
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
+#include "infinitetags.c"
 
 Systray *systray = NULL;
 const char broken[] = "broken";
@@ -627,6 +628,7 @@ cleanupmon(Monitor *mon)
 	}
 	XUnmapWindow(dpy, mon->barwin);
 	XDestroyWindow(dpy, mon->barwin);
+	free(mon->canvas);
 	free(mon);
 }
 
@@ -808,6 +810,7 @@ createmon(void)
 	/* This sets the current and previous tagset to 1, as in the first tag is selected by
 	 * default. */
 	m->selected_workspaces[0] = m->selected_workspaces[1] = 1;
+	m->canvas = ecalloc(NUMTAGS, sizeof(*m->canvas));
     
 	/* Return the newly created monitor. */
 	return m;
@@ -1129,6 +1132,14 @@ drawbar(Monitor *m)
 	/* Just draw the layout symbol. Note how the drw_text function returns how far the cursor
 	 * moved while drawing the text. */
 	x = drw_text(drw, x, 0, w, bh, lrpad / 2, PERWS(m)->ltsymbol, 0);
+	if (PERWS(m)->lt[PERWS(m)->sellt]->arrange == NULL) {
+		char coords[64];
+		CanvasOffset *canvas = &m->canvas[m->selected_workspaces[m->sel_ws] - 1];
+		snprintf(coords, sizeof(coords), "[x%d y%d]", canvas->cx / COORDINATES_DIVISOR, canvas->cy / COORDINATES_DIVISOR);
+		w = TEXTW(coords);
+		drw_setscheme(drw, scheme[SchemeNorm]);
+		x = drw_text(drw, x, 0, w, bh, lrpad / 2, coords, 0);
+	}
 
 	// Draw window titles
 	/* This checks if there is any space left to draw the window title (while setting w to the
@@ -2393,6 +2404,7 @@ setfullscreen(Client *c, int fullscreen)
 void
 setlayout(const Arg *arg)
 {
+	const Layout *old_layout = PERWS(selmon)->lt[PERWS(selmon)->sellt];
 	/* Toggle the selected layout if:
 	 *    - a NULL argument was passed to setlayout or
 	 *    - an argument with value of 0 was passed to setlayout or
@@ -2423,6 +2435,20 @@ setlayout(const Arg *arg)
 		/* This sets the selected montor's selected layout to the layout provided as the
 		 * argument. */
 		PERWS(selmon)->lt[PERWS(selmon)->sellt] = (Layout *)arg->v;
+
+	const Layout *new_layout = PERWS(selmon)->lt[PERWS(selmon)->sellt];
+	if (old_layout->arrange == NULL && new_layout->arrange != NULL) {
+		save_canvas_positions(selmon);
+		homecanvas(NULL);
+		for (Client *c = selmon->clients; c; c = c->next)
+			if (!c->isfixed)
+				c->isfloating = 0;
+	} else if (old_layout->arrange != NULL && new_layout->arrange == NULL) {
+		restore_canvas_positions(selmon);
+		for (Client *c = selmon->clients; c; c = c->next)
+			if (ISVISIBLE(c))
+				c->isfloating = 1;
+	}
 
 	/* Copy the layout symbol of the given layout into the monitor's layout symbol. This is
 	 * later used when drawing the layout symbol on the bar. */
@@ -3773,6 +3799,8 @@ updatewmhints(Client *c)
 void
 viewworkspace(const Arg *arg)
 {
+	if (PERWS(selmon)->lt[PERWS(selmon)->sellt]->arrange == NULL)
+		save_canvas_positions(selmon);
 	/* If the given workspace is the same as what is currently shown then do nothing. This makes
 	 * it so that if you are on workspace 7 and you hit MOD+7 then nothing happens. */
 	if (arg->ui == selmon->selected_workspaces[selmon->sel_ws])
@@ -3789,6 +3817,13 @@ viewworkspace(const Arg *arg)
 	 */
 	if (arg->ui)
 		selmon->selected_workspaces[selmon->sel_ws] = arg->ui;
+
+	if (PERWS(selmon)->lt[PERWS(selmon)->sellt]->arrange == NULL) {
+		restore_canvas_positions(selmon);
+		for (Client *c = selmon->clients; c; c = c->next)
+			if (ISVISIBLE(c))
+				c->isfloating = 1;
+	}
 
 	/* Focus on the first visible client in the stack as the view has changed */
 	focus(NULL);
