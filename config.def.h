@@ -5,6 +5,8 @@
 
 #include "dwm.h"
 #include "tree.h"
+#include "palette.h"
+
 #include <X11/X.h>
 #include <X11/Xutil.h>
 
@@ -31,17 +33,17 @@ static const char *fonts[]               = {
 };
 static const char dmenufont[]            = "JetBrainsMonoNL NFP:size=20:style=Bold";
 
-static char normfgcolor[]                = "#ebdbb2";
-static char normbgcolor[]                = "#282828";
-static char normbordercolor[]            = "#3c3836";
+static char normfgcolor[]                = DWM_NORM_FG;
+static char normbgcolor[]                = DWM_NORM_BG;
+static char normbordercolor[]            = DWM_NORM_BORDER;
 
-static char selfgcolor[]                 = "#fbf1c7";
-static char selbgcolor[]                 = "#e78a3e";
-static char selbordercolor[]             = "#e78a3e";
+static char selfgcolor[]                 = DWM_SEL_FG;
+static char selbgcolor[]                 = DWM_SEL_BG;
+static char selbordercolor[]             = DWM_SEL_BORDER;
 
-static char statusfgcolor[]              = "#ebdbb2";
-static char statusbgcolor[]              = "#282828";
-static char statusbordercolor[]          = "#3c3836";
+static char statusfgcolor[]              = DWM_STATUS_FG;
+static char statusbgcolor[]              = DWM_STATUS_BG;
+static char statusbordercolor[]          = DWM_STATUS_BORDER;
 
 static const char *colors[][3] = {
 	/*               fg               bg             border */

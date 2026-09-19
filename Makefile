@@ -28,7 +28,7 @@ compile_commands:
 
 # Tells make that every OBJ file depends on config.h and config.mk, 
 # so if either of those files change, the .o files will be rebuilt
-${OBJ}: config.h config.mk
+${OBJ}: config.h config.mk palette.h
 
 config.h: config.def.h 
 	cp $< $@
