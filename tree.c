@@ -465,24 +465,33 @@ treenode_auto_add(Client *c)
 void
 tree_change_proportion(const Arg *arg)
 {
+
+    /* Direction mapping:
+     *   0 = left
+     *   1 = down
+     *   2 = up
+     *   3 = right
+     */
     if (!selmon || !selmon->sel || !selmon->sel->node)
         return;
 
     TreeNode *crossing_node = tree_find_crossing_point(selmon->sel->node, arg->i);
 
     if (!crossing_node)
+        // If there is no node in the direction we want
+        // then we check if we are shrinking the proportion
+        // todo this we flip the direction
+        crossing_node = tree_find_crossing_point(selmon->sel->node, 3 - arg->i);
+
+    if (!crossing_node)
+        // There is still no node in the opposite direction so
+        // we return early
         return;
 
-    switch (arg->i) {
-        case 0: // Left
-        case 2: // Up
-            crossing_node->proportion = MAX(5, crossing_node->proportion - 5);
-            break;
-        case 1: // Down
-        case 3: // Right
-            crossing_node->proportion = MIN(95, crossing_node->proportion + 5);
-            break;
-    }
+    /// How much to change the proportion in percent
+    const int delta = (arg->i == 0 || arg->i == 2) ? -5 : 5;
+
+    crossing_node->proportion = MIN(95, MAX(5, crossing_node->proportion + delta));
 
     arrange(selmon);
 }
