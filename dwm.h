@@ -38,12 +38,10 @@
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
 #define NUMTAGS                 (LENGTH(workspaces) + LENGTH(scratchpads))
-#define WORKSPACEMASK           ((1 << LENGTH(workspaces)) - 1)
 #define WORKSPACEBIT(W)         (1U << ((W) - 1))
 #define SPTAG(i)                (LENGTH(workspaces) + (i) + 1)
 #define IS_SP_WORKSPACE(W)      ((W) > LENGTH(workspaces) && (W) <= NUMTAGS)
-#define PERWORKSPACE(M)         (perworkspaces[(M)->selected_workspaces[(M)->sel_ws] - 1])
-#define PERWS(M)                PERWORKSPACE(M)
+#define PERWS(M)                (perworkspaces[(M)->selected_workspaces[(M)->sel_ws] - 1])
 
 /// Check workspace bounds
 ///    1 <= W <= NUMTAGS
