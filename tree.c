@@ -137,9 +137,9 @@ treenode_remove(Client* c)
     // make sure it points to the same client
     assert(node->client == c);
 
-    if (perworkspaces[c->workspace - 1]->root == node) {
+    if (workspaces[c->workspace - 1]->root == node) {
         // node is the root node within the monitor
-        perworkspaces[c->workspace - 1]->root = NULL;
+        workspaces[c->workspace - 1]->root = NULL;
         c->node = NULL;
 
         free(node);
@@ -179,7 +179,7 @@ treenode_remove(Client* c)
         sibling->parent = grandparent;
     } else {
         // parent is the root node, thus the new root node becomes sibling
-        perworkspaces[c->workspace - 1]->root = sibling;
+        workspaces[c->workspace - 1]->root = sibling;
 
         // TODO: This may not be necessary
         sibling->is_A = 1;
@@ -204,12 +204,12 @@ treenode_internal_add(Client *c, Client *focused)
 {
     TreeNode *focused_node, *node_a, *node_b;
 
-    if (!perworkspaces[c->workspace - 1]->root || !focused || !focused->node) {
+    if (!workspaces[c->workspace - 1]->root || !focused || !focused->node) {
         // Early Exit if there is no root node
         c->node = ecalloc(1, sizeof(*c->node));
         c->node->client = c;
         c->node->proportion = 50;
-        perworkspaces[c->workspace - 1]->root = c->node;
+        workspaces[c->workspace - 1]->root = c->node;
         return;
     }
 
@@ -251,7 +251,7 @@ treenode_add(Client *c)
         return;
 
     focused = c->mon->sel;
-    if (!perworkspaces[c->workspace - 1]->root)
+    if (!workspaces[c->workspace - 1]->root)
         treenode_internal_add(c, NULL);
     else if (focused && focused->workspace == c->workspace && focused->node)
         treenode_internal_add(c, focused);
@@ -412,7 +412,7 @@ treenode_navigate(const Arg *arg)
 static TreeNode*
 closest_leaf(int workspace)
 {
-    if (!perworkspaces[workspace - 1]->root)
+    if (!workspaces[workspace - 1]->root)
         return NULL;
 
     /// TODO: Currently there is no mechanism to allocate more space in
@@ -423,7 +423,7 @@ closest_leaf(int workspace)
     int front = 0;
     int rear = 1;
 
-    queue[0] = perworkspaces[workspace - 1]->root;
+    queue[0] = workspaces[workspace - 1]->root;
 
     // BFS
     while (front < rear) { // check if the queue is empty

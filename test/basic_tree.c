@@ -9,18 +9,18 @@ Test(basic_tree, guard_clauses_ignore_invalid_or_duplicate_operations)
 
     treenode_add(NULL);
     treenode_remove(NULL);
-    cr_assert_null(perworkspaces[0]->root);
+    cr_assert_null(workspaces[0]->root);
 
     treenode_add(&client);
-    TreeNode *root = perworkspaces[0]->root;
+    TreeNode *root = workspaces[0]->root;
     treenode_add(&client);
-    cr_assert_eq(perworkspaces[0]->root, root);
+    cr_assert_eq(workspaces[0]->root, root);
     cr_assert_eq(client.node, root);
     cr_assert_eq(root->client, &client);
 
     treenode_remove(&client);
     treenode_remove(&client);
-    cr_assert_null(perworkspaces[0]->root);
+    cr_assert_null(workspaces[0]->root);
     cr_assert_null(client.node);
 }
 
@@ -31,14 +31,14 @@ Test(basic_tree, adding_first_client_creates_leaf_root)
 
     treenode_add(&client);
 
-    cr_assert_eq(perworkspaces[0]->root, client.node);
+    cr_assert_eq(workspaces[0]->root, client.node);
     cr_assert_eq(client.node->client, &client);
     cr_assert_null(client.node->a);
     cr_assert_null(client.node->b);
     cr_assert_null(client.node->parent);
 
     treenode_remove(&client);
-    cr_assert_null(perworkspaces[0]->root);
+    cr_assert_null(workspaces[0]->root);
     cr_assert_null(client.node);
 }
 
@@ -52,7 +52,7 @@ Test(basic_tree, adding_second_client_splits_focused_leaf)
     monitor.sel = &first;
     treenode_add(&second);
 
-    TreeNode *root = perworkspaces[0]->root;
+    TreeNode *root = workspaces[0]->root;
     cr_assert_null(root->client);
     cr_assert_eq(root->a, first.node);
     cr_assert_eq(root->b, second.node);
@@ -65,7 +65,7 @@ Test(basic_tree, adding_second_client_splits_focused_leaf)
 
     treenode_remove(&second);
     treenode_remove(&first);
-    cr_assert_null(perworkspaces[0]->root);
+    cr_assert_null(workspaces[0]->root);
 }
 
 Test(basic_tree, restart_add_uses_workspace_tree_when_monitor_focus_is_elsewhere)
@@ -83,16 +83,16 @@ Test(basic_tree, restart_add_uses_workspace_tree_when_monitor_focus_is_elsewhere
      * can still point at a client from another workspace. */
     treenode_add(&restored);
 
-    cr_assert_null(perworkspaces[0]->root->client);
-    cr_assert_eq(perworkspaces[0]->root->a->client, &first);
-    cr_assert_eq(perworkspaces[0]->root->b->client, &restored);
-    cr_assert_eq(perworkspaces[1]->root->client, &focused_elsewhere);
+    cr_assert_null(workspaces[0]->root->client);
+    cr_assert_eq(workspaces[0]->root->a->client, &first);
+    cr_assert_eq(workspaces[0]->root->b->client, &restored);
+    cr_assert_eq(workspaces[1]->root->client, &focused_elsewhere);
 
     treenode_remove(&restored);
     treenode_remove(&first);
     treenode_remove(&focused_elsewhere);
-    cr_assert_null(perworkspaces[0]->root);
-    cr_assert_null(perworkspaces[1]->root);
+    cr_assert_null(workspaces[0]->root);
+    cr_assert_null(workspaces[1]->root);
 }
 
 Test(basic_tree, removing_leaf_promotes_sibling_and_preserves_tree)
@@ -110,7 +110,7 @@ Test(basic_tree, removing_leaf_promotes_sibling_and_preserves_tree)
 
     treenode_remove(&third);
 
-    TreeNode *root = perworkspaces[0]->root;
+    TreeNode *root = workspaces[0]->root;
     cr_assert_eq(root->a->client, &first);
     cr_assert_eq(root->b->client, &second);
     cr_assert_eq(second.node, root->b);
@@ -118,9 +118,9 @@ Test(basic_tree, removing_leaf_promotes_sibling_and_preserves_tree)
     cr_assert_null(third.node);
 
     treenode_remove(&first);
-    cr_assert_eq(perworkspaces[0]->root, second.node);
+    cr_assert_eq(workspaces[0]->root, second.node);
     cr_assert_null(second.node->parent);
 
     treenode_remove(&second);
-    cr_assert_null(perworkspaces[0]->root);
+    cr_assert_null(workspaces[0]->root);
 }

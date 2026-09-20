@@ -97,7 +97,7 @@ Drw *drw;
 Monitor *mons, *selmon;
 Window root, wmcheckwin;
 xcb_connection_t *xcon;
-Perworkspace *perworkspaces[NUMTAGS];
+Workspace *workspaces[NUMTAGS];
 
 // ┌──────────┬──────┬─────────────────────────────────────────┬──────────────┬────────┐
 // │ 1 2 3    │[]=]  │  vim │  firefox │  terminal             │ 10:30 AM     │ WIFI   │
@@ -218,7 +218,7 @@ applyrules(Client *c)
 			// Sets the workspace
 			c->workspace = r->workspace;
 			if (IS_SP_WORKSPACE(r->workspace))
-				c->scratchpad = r->workspace - LENGTH(workspaces);
+				c->scratchpad = r->workspace - LENGTH(workspace_names);
 
 			c->icon = r->icon;
 
@@ -263,16 +263,45 @@ applyrules(Client *c)
 	c->tags = c->workspace;
 }
 
+
+/* This function assesses whether a resize for a window is needed or not considering the window's
+ * size hints which adds restrictions on the window's size or how the window is sized.
+ */
 int
 applysizehints(Client *c, int *x, int *y, int *w, int *h, int *bw, int interact)
 {
+	/* It is worth noting here that the x, y, w, and h parameters are pointers to the variables
+	 * that the resize function passes as references. This is because this function manipulates
+	 * those values directly. This is also why every use of these variables in this function
+	 * has the pointer (*) prefix, e.g. *w.
+	 *
+	 * If the parameters were normal int variables then the arguments would be passed by value,
+	 * meaning that applysizehints would get copies of said values leaving the variables in the
+	 * calling resize function untouched. */
+
+	/* Variable used to indicate whether the window is at its minimum size. */
 	int baseismin;
 	Monitor *m = c->mon;
 
-	/* set minimum possible */
+	/* A window's height and width must be at least 1 pixel, this is merely a safeguard for
+	 * values of 0 or below being passed. */
 	*w = MAX(1, *w);
 	*h = MAX(1, *h);
+
+	/* Here we make a distinction between whether the resize is being done by the system or
+	 * interactively by the user.
+	 *
+	 * The practical difference is that resizes done by the system must leave the window within
+	 * the monitor's window area, while we allow the window to be moved freely within the
+	 * available screen area.
+	 */
 	if (interact) {
+		/* When the user interacts with a window this checks whether a window is placed
+		 * outside of the screen area and restricts how far outside the window can go.
+		 * It can be thought of a safeguard to prevent floating windows from becoming
+		 * unreachable. The screen height and width naturally reflect a rectangle and the
+		 * below does not attempt to prevent windows ending up out of view in Xinerama setups
+		 * where the monitors have different heights and widths. */
 		if (*x > sw)
 			*x = sw - WIDTH(c);
 		if (*y > sh)
@@ -328,6 +357,15 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int *bw, int interact)
 		if (c->maxh)
 			*h = MIN(*h, c->maxh);
 	}
+
+
+	/* Here we check whether the size and position has changed after applying size hints before
+	 * returning. This tells the resize function whether we need to go ahead with the resizing
+	 * the window or not.
+	 *
+	 * Again the st example with incremental size hints demonstrates this nicely in that as long
+	 * as the mouse cursor doesn't move far enough to add (or remove) another row or column then
+	 * there is no need for a resize. */
 	return *x != c->x || *y != c->y || *w != c->w || *h != c->h || *bw != c->bw;
 }
 
@@ -448,16 +486,16 @@ buttonpress(XEvent *e)
         unsigned int occ = 0;
 
         for (c = m->clients; c; c = c->next)
-            if (c->workspace >= 1 && c->workspace <= LENGTH(workspaces))
+            if (c->workspace >= 1 && c->workspace <= LENGTH(workspace_names))
                 occ |= WORKSPACEBIT(c->workspace);
 		
         do {
             /* Do not reserve space for vacant workspaces. */
             if (!(occ & (1U << i) || i + 1 == m->selected_workspaces[m->sel_ws]))
                 continue;
-			x += TEXTW(workspaces[i]);
-        } while (ev->x >= x && ++i < LENGTH(workspaces));
-		if (i < LENGTH(workspaces)) {
+			x += TEXTW(workspace_names[i]);
+        } while (ev->x >= x && ++i < LENGTH(workspace_names));
+		if (i < LENGTH(workspace_names)) {
 			click = ClkTagBar;
 			arg.ui = i + 1;
 		} else if (ev->x < x + TEXTW(PERWS(selmon)->ltsymbol))
@@ -591,7 +629,7 @@ cleanup(void)
 		drw_scm_free(drw, scheme[i], 3);
 
     for (i = 0; i < NUMTAGS; i++)
-        free(perworkspaces[i]);
+        free(workspaces[i]);
 
 	/* Free the memory used for the scheme struct as well */
     free(scheme);
@@ -1038,14 +1076,14 @@ drawbar(Monitor *m)
 		if (ISVISIBLE(c))
 			n++;
 
-        if (c->workspace >= 1 && c->workspace <= LENGTH(workspaces))
+        if (c->workspace >= 1 && c->workspace <= LENGTH(workspace_names))
             /* The or-equals operator means the union of occ and c->tags, it is short for
              *    occ = occ | c->tags;
              */
             occ |= WORKSPACEBIT(c->workspace);
 
 		/* We do the same for urgent clients. */
-        if (c->isurgent && c->workspace >= 1 && c->workspace <= LENGTH(workspaces))
+        if (c->isurgent && c->workspace >= 1 && c->workspace <= LENGTH(workspace_names))
 			urg |= WORKSPACEBIT(c->workspace);
 	}
 
@@ -1056,14 +1094,14 @@ drawbar(Monitor *m)
 	x = 0;
 
 	/* We start by looping through all tags. */
-	for (i = 0; i < LENGTH(workspaces); i++) {
+	for (i = 0; i < LENGTH(workspace_names); i++) {
         /* Do not draw vacant tags */
         if (!(occ & (1U << i) || i + 1 == m->selected_workspaces[m->sel_ws]))
             continue;
 
 		/* The user can define their own tag symbols (or text) so the width of each tag can
 		 * differ from tag to tag. */
-		w = TEXTW(workspaces[i]);
+		w = TEXTW(workspace_names[i]);
 
 		/* Here we set the colour scheme to use when drawing the tag text. The gist of it is
 		 * that we use SchemeSel if the tag is being viewed and SchemeNorm otherwise.
@@ -1092,7 +1130,7 @@ drawbar(Monitor *m)
 		 *    urg & 1 << i - the intersection between the two binaries will be true if the
 		 *                   current tag has urgent clients
 		 */
-		drw_text(drw, x, 0, w, bh, lrpad / 2, workspaces[i], urg & (1U << i));
+		drw_text(drw, x, 0, w, bh, lrpad / 2, workspace_names[i], urg & (1U << i));
         
         /* We are done drawing, move our draw "cursor" to the next tag. */
 		x += w;
@@ -1896,14 +1934,6 @@ movemouse(const Arg *arg)
  *
  * Given an input client c the function returns the next visible tiled client in the list, or NULL
  * if there are no more subsequent tiled clients.
- *
- * @called_from tile for tiling purposes
- * @called_from monocle for tiling purposes
- * @called_from zoom to check if the selected client is the master client
- *
- * Internal call stack:
- *    ~ -> arrange -> arrangemon -> tile / monocle -> nexttiled
- *    run -> keypress -> zoom -> nexttiled
  */
 Client *
 nexttiled(Client *c)
@@ -2646,27 +2676,27 @@ setup(void)
 
     /// Allocate the array of Pertags
     for (int i = 0; i < NUMTAGS; i++) {
-        perworkspaces[i] = ecalloc(1, sizeof(Perworkspace));
+        workspaces[i] = ecalloc(1, sizeof(Workspace));
 
         /* We set the default master / stack factor, number of clients in the master area, whether
          * to show the bar by default and its location based on the corresponding variables set in
          * the configuration file. */
-        perworkspaces[i]->mfact = mfact;
-        perworkspaces[i]->nmaster = nmaster;
-        perworkspaces[i]->showbar = showbar;
-        perworkspaces[i]->topbar = topbar;
+        workspaces[i]->mfact = mfact;
+        workspaces[i]->nmaster = nmaster;
+        workspaces[i]->showbar = showbar;
+        workspaces[i]->topbar = topbar;
 
         /* This sets the first layout as selected by default (which is the tile layout as per the
          * default configuration). */
-        perworkspaces[i]->lt[0] = &layouts[0];
+        workspaces[i]->lt[0] = &layouts[0];
 
         /* This sets the previous layout as the last layout (which is the monocle layout as per the
          * default configuration). */
-        perworkspaces[i]->lt[1] = &layouts[1 % LENGTH(layouts)];
+        workspaces[i]->lt[1] = &layouts[1 % LENGTH(layouts)];
 
         /* This copies the layout symbol from the first layout into the monitor's layout symbol.
          * This is later used when drawing the layout symbol on the bar. */
-        strncpy(perworkspaces[i]->ltsymbol, layouts[0].symbol, sizeof perworkspaces[i]->ltsymbol);
+        strncpy(workspaces[i]->ltsymbol, layouts[0].symbol, sizeof workspaces[i]->ltsymbol);
     }
 
 	/* The call to updategeom creates the monitor(s) based on Xinerama information, or it
@@ -3078,7 +3108,7 @@ tile(Monitor *m)
 	 */
 	unsigned int i, n, h, mw, my, ty, bw;
 
-    const Perworkspace* pertag = perworkspaces[m->tagset[m->seltags]];
+    const Workspace* pertag = workspaces[m->tagset[m->seltags]];
 
 	Client *c;
 
@@ -3113,7 +3143,7 @@ tile(Monitor *m)
 void
 togglebar(const Arg *arg)
 {
-    Perworkspace* pertag = perworkspaces[selmon->tagset[selmon->seltags]];
+    Workspace* pertag = workspaces[selmon->tagset[selmon->seltags]];
 	pertag->showbar = !pertag->showbar;
 	updatebarpos(selmon);
 	resizebarwin(selmon);

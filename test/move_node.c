@@ -39,14 +39,14 @@ Test(move_node, moving_client_then_removing_all_leaves_no_stale_nodes)
 
     treenode_move_node(&right);
 
-    cr_assert_null(perworkspaces[0]->root->client);
-    cr_assert_eq(perworkspaces[0]->root->a->client, &b);
-    cr_assert_eq(perworkspaces[0]->root->b->client, &a);
-    cr_assert_eq(a.node, perworkspaces[0]->root->b);
+    cr_assert_null(workspaces[0]->root->client);
+    cr_assert_eq(workspaces[0]->root->a->client, &b);
+    cr_assert_eq(workspaces[0]->root->b->client, &a);
+    cr_assert_eq(a.node, workspaces[0]->root->b);
 
     treenode_remove(&a);
     treenode_remove(&b);
-    cr_assert_null(perworkspaces[0]->root);
+    cr_assert_null(workspaces[0]->root);
     selmon = NULL;
 }
 

@@ -37,11 +37,11 @@
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
-#define NUMTAGS                 (LENGTH(workspaces) + LENGTH(scratchpads))
+#define NUMTAGS                 (LENGTH(workspace_names) + LENGTH(scratchpads))
 #define WORKSPACEBIT(W)         (1U << ((W) - 1))
-#define SPTAG(i)                (LENGTH(workspaces) + (i) + 1)
-#define IS_SP_WORKSPACE(W)      ((W) > LENGTH(workspaces) && (W) <= NUMTAGS)
-#define PERWS(M)                (perworkspaces[(M)->selected_workspaces[(M)->sel_ws] - 1])
+#define SPTAG(i)                (LENGTH(workspace_names) + (i) + 1)
+#define IS_SP_WORKSPACE(W)      ((W) > LENGTH(workspace_names) && (W) <= NUMTAGS)
+#define PERWS(M)                (workspaces[(M)->selected_workspaces[(M)->sel_ws] - 1])
 
 /// Check workspace bounds
 ///    1 <= W <= NUMTAGS
@@ -293,7 +293,7 @@ struct Monitor {
 	Window barwin;
 };
 
-typedef struct Perworkspace {
+typedef struct Workspace {
 	/* This represents the number of clients that are to be tiled in the master area. This has
 	 * no upper limit but cannot be less than 0. The default value is configured in the
 	 * configuration file and the value is adjusted via the incnmaster function. */
@@ -349,7 +349,7 @@ typedef struct Perworkspace {
 
     /// The tag root tree node 
     TreeNode* root;
-} Perworkspace;
+} Workspace;
 
 /* The definition of a rule, used in the configuration file when setting up client rules.
  *
@@ -536,6 +536,6 @@ extern Window root, wmcheckwin;
 
 extern xcb_connection_t *xcon;
 
-extern Perworkspace *perworkspaces[];
+extern Workspace *workspaces[];
 
 #endif /* DWM_H */
