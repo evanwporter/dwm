@@ -12,6 +12,8 @@ UTIL_OBJ = ${UTIL_SRC:.c=.o}
 TEST_SRC = test/move_node.c test/dwm_stubs.c test/navigate_tree.c test/auto_add.c test/basic_tree.c test/proportion.c
 TEST_OBJ = ${TEST_SRC:.c=.o}
 
+DEP = ${OBJ:.o=.d} ${UTIL_OBJ:.o=.d} ${TEST_OBJ:.o=.d}
+
 CRITERION_CFLAGS = $(shell pkg-config --cflags criterion)
 CRITERION_LIBS = $(shell pkg-config --libs criterion)
 
@@ -50,5 +52,7 @@ install: all
 	mkdir -p ${DESTDIR}${MANPREFIX}/man1
 	sed "s/VERSION/${VERSION}/g" < dwm.1 > ${DESTDIR}${MANPREFIX}/man1/dwm.1
 	chmod 644 ${DESTDIR}${MANPREFIX}/man1/dwm.1
+
+-include ${DEP}
 
 .PHONY: all clean compile_commands

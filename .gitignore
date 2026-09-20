@@ -4,3 +4,4 @@ config.h
 dwm
 tests
 compile_commands.json
+*.d
