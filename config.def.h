@@ -127,11 +127,13 @@ static const char *termcmd[]  = { "st", NULL };
 static const char *flameshot[] = {
   "flameshot", "gui", NULL
 };
+static const char *powermenu[] = { "powermenu", NULL };
 
 static const Key keys[] = {
 	/* modifier                     key        function        argument */
 	{ MODKEY,                       XK_space,  spawn,          {.v = dmenucmd } },
 	{ MODKEY,                       XK_Return, spawn,          {.v = termcmd } },
+    { MODKEY,                       XK_p,      spawn,          {.v = powermenu }},
 	{ MODKEY,                       XK_b,      togglebar,      {0} },
 	{ MODKEY,                       XK_h,      key_move, {.i = 0 } },
 	{ MODKEY,                       XK_j,      key_move, {.i = 1 } },
