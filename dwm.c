@@ -178,7 +178,6 @@ applyrules(Client *c)
 	/* rule matching */
 	c->isfloating = 0;
     c->workspace = 0;
-	c->tags = 0;
     c->icon = NULL;
     c->scratchpad = 0;
 
@@ -260,7 +259,6 @@ applyrules(Client *c)
 	c->workspace = c->workspace && CHECK_WS_BOUNDS(c->workspace)
         ? c->workspace
         : c->mon->selected_workspaces[c->mon->sel_ws];
-	c->tags = c->workspace;
 }
 
 
@@ -701,7 +699,6 @@ clientmessage(XEvent *e)
 			c->bw = 0;
 			c->isfloating = True;
 			/* reuse tags field as mapped status */
-			c->tags = 1;
 			updatesizehints(c);
 			updatesystrayicongeom(c, wa.width, wa.height);
 			XAddToSaveSet(dpy, c->win);
@@ -1464,7 +1461,7 @@ getstate(Window w)
 }
 
 unsigned int
-getsystraywidth()
+getsystraywidth(void)
 {
 	unsigned int w = 0;
 	Client *i;
@@ -1687,7 +1684,6 @@ manage(Window w, XWindowAttributes *wa)
 	if (XGetTransientForHint(dpy, w, &trans) && (t = wintoclient(trans))) {
         /* A transient window inherits the monitor and tags from its parent window. */
 		c->mon = t->mon;
-		c->tags = t->tags;
         c->workspace = t->workspace;
 	} else {
 		/* Normal windows are opened on the selected monitor by default, but can be moved to
@@ -1811,16 +1807,7 @@ maprequest(XEvent *e)
 		manage(ev->window, &wa);
 }
 
-/* This is what handles the monocle layout arrangement.
- *
- * @called_from arrangemon
- * @calls snprintf to update the layout symbol of the monitor
- * @calls nexttiled to get the next tiled client
- * @calls resize to change the size and position of client windows
- *
- * Internal call stack:
- *    ~ -> arrange -> arrangemon -> monocle
- */
+/// This is what handles the monocle layout arrangement.
 void
 monocle(Monitor *m)
 {
@@ -3650,7 +3637,7 @@ updatesystrayiconstate(Client *i, XPropertyEvent *ev)
 		XMapRaised(dpy, i->win);
 		setclientstate(i, NormalState);
 	}
-	else if (!(flags & XEMBED_MAPPED) && i->tags) {
+	else if (!(flags & XEMBED_MAPPED)) {
 		i->workspace = 0;
 		code = XEMBED_WINDOW_DEACTIVATE;
 		XUnmapWindow(dpy, i->win);

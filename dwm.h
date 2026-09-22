@@ -133,18 +133,6 @@ struct Client {
 
 	int bw, oldbw;
 
-	/* This represents the tags the client is shown on. This is a bitmask where each bit
-	 * represents whether the client is shown on that tag.
-	 *
-	 * As an example consider the hexadecimal value of 0x51 (decimal 81) which has a binary
-	 * value of:
-	 *    001010001  - bitmask
-	 *    987654321  - tags
-	 *
-	 * This would mean that the client is shown on tags 1, 5 and 7.
-	 */
-	unsigned int tags;
-
     /// The workspace the client is attached too
     unsigned int workspace;
 
