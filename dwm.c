@@ -1209,7 +1209,7 @@ drawbar(Monitor *m)
 	/* We start by looping through all tags. */
 	for (i = 0; i < LENGTH(workspace_names); i++) {
         /* Do not draw vacant tags */
-        if (!(occ & (1U << i) || i + 1 == m->selected_workspaces[m->sel_ws]))
+        if (!(occ & (1U << i) || WORKSPACEBIT(i + 1) & m->selected_workspaces[m->sel_ws]))
             continue;
 
 		/* The user can define their own tag symbols (or text) so the width of each tag can
@@ -1231,7 +1231,7 @@ drawbar(Monitor *m)
 		 * or
 		 *    drw_setscheme(drw, scheme[SchemeNorm]);
 		 */
-		drw_setscheme(drw, scheme[i + 1 == m->selected_workspaces[m->sel_ws] ? SchemeSel : SchemeNorm]);
+		drw_setscheme(drw, scheme[WORKSPACEBIT(i + 1) & m->selected_workspaces[m->sel_ws] ? SchemeSel : SchemeNorm]);
 
 		/* Draw the tag text (tags[i]). Note the last argument which inverts the colours of
 		 * the tag if it is occupied by an urgent client. Invert in this context means to
@@ -3906,13 +3906,16 @@ updatewmhints(Client *c)
 void
 viewworkspace(const Arg *arg)
 {
+    if (!CHECK_WS_BOUNDS(arg->ui))
+        return;
+
 	/* If the given workspace is the same as what is currently shown then do nothing. This makes
 	 * it so that if you are on workspace 7 and you hit MOD+7 then nothing happens. */
-	if (arg->ui == selmon->selected_workspaces[selmon->sel_ws])
+	if (WORKSPACEBIT(arg->ui) & selmon->selected_workspaces[selmon->sel_ws])
 		return;  // Already on this workspace
 
 	/* This toggles between the previous and current tagset. */
-	selmon->sel_ws ^= 1; /* toggle sel tagset */
+	selmon->sel_ws ^= 1; /* toggle selected workspace */
 
 	/* This sets the new tagset, unless the given unsigned int argument is 0. This has
 	 * specifically to do with the MOD+Tab keybinding that passes 0 as the bitmask to toggle
@@ -3921,7 +3924,7 @@ viewworkspace(const Arg *arg)
 	 *    { MODKEY,                       XK_Tab,    view,           {0} },
 	 */
 	if (arg->ui)
-		selmon->selected_workspaces[selmon->sel_ws] = arg->ui;
+		selmon->selected_workspaces[selmon->sel_ws] = WORKSPACEBIT(arg->ui);
 
 	/* Focus on the first visible client in the stack as the view has changed */
 	focus(NULL);
@@ -4165,6 +4168,44 @@ systraytomon(Monitor *m) {
 	if(systraypinningfailfirst && n < systraypinning)
 		return mons;
 	return t;
+}
+
+/* The toggleview function brings workspaces into or out of view.
+ *
+ * This is referenced in the TAGKEYS macro which sets up keybindings for each individual tag.
+ */
+void
+toggleviewworkspace(const Arg *arg)
+{
+    if (!CHECK_WS_BOUNDS(arg->ui))
+        return;
+
+	/* This creates a new tagmask based on the selected monitor's selected tagset toggling
+	 * the tagmask given as an argument. Refer to the writeup in the toggletag function should
+	 * you need more information on how this works.
+     *
+     * XOR toggles the workspace bit on/off. If the bit was 0, it becomes 1 (add workspace).
+     * If the bit was 1, it becomes 0 (remove workspace).
+     *
+     * Example: Currently viewing workspaces 1 and 3 (0b00000101), toggle workspace 2:
+     *    0b00000101 ^ 0b00000010 = 0b00000111 (now viewing 1, 2, and 3)
+     */
+	const unsigned int newworkspaceset = selmon->selected_workspaces[selmon->sel_ws] ^ WORKSPACEBIT(arg->ui)
+
+	/* This prevents the scenario of toggling away the last viewed tag. I.e. there must be at
+	 * least one tag viewed. */
+	if (newworkspaceset) {
+
+		/* This sets the new tag set for the selected monitor */
+		selmon->tagset[selmon->seltags] = newworkspaceset;
+
+		/* The client that had focus may have been on a tag that was toggled away, so give
+		 * input focus to the next client in the stack. */
+		focus(NULL);
+
+		/* A full arrange as the constellation of client windows viewed may have changed. */
+		arrange(selmon);
+	}
 }
 
 void

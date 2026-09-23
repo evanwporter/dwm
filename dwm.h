@@ -28,24 +28,94 @@
 #include "util.h"
 
 /* macros */
+
+/* The BUTTONMASK macro is used as part of the MOUSEMASK macro and it is directly used in the
+ * grabbuttons function. It indicates that we are interested in receiving events both when a mouse
+ * button is pressed and when it is released. */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
+
+/* The CLEANMASK macro removes Num Lock mask and Lock mask from a given bit mask.
+ * Refer to the numlockmask variable comment for more details on the Num Lock mask.
+ * The CLEANMASK macro is used in the keypress and buttonpress functions. */
 #define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
+
+/* Calculates how much a monitor's window area intersects with a given size and position.
+ * See the writeup in the recttomon function for more information on this. */
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
                                * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
-#define ISVISIBLE(C)            ((C->workspace == C->mon->selected_workspaces[C->mon->sel_ws]))
+
+/* This macro returns true if any of the given client's tags is on any of the tags currently being
+ * viewed on the monitor. */
+#define ISVISIBLE(C)            ((WORKSPACEBIT(C->workspace) & C->mon->selected_workspaces[C->mon->sel_ws]))
+
 #define HIDDEN(C)               (getstate((C)->win) == IconicState)
+
+/* The MOUSEMASK macro is used in the movemouse and resizemouse user functions and it indicates
+ * that we are interested in receiving events when the mouse cursor moves in addition to when the
+ * button is released. */
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
+
+/* The actual width of a client window includes the border and this macro helps calculate that. */
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
+
+/* The actual height of a client window includes the border and this macro helps calculate that. */
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
+
+// The total number of workspaces + scrathpads
 #define NUMTAGS                 (LENGTH(workspace_names) + LENGTH(scratchpads))
+
+/* Converts a workspace number (1-9) to its corresponding bit position in a bitmask.
+ *
+ * Workspaces are numbered 1-9 for users, but bits are 0-indexed, so we subtract 1.
+ * The left shift operator (<<) creates a bitmask with only that bit set.
+ *
+ * Examples:
+ *    WORKSPACEBIT(1) = 1U << 0 = 0b00000001 = 1
+ *    WORKSPACEBIT(2) = 1U << 1 = 0b00000010 = 2
+ *
+ *
+ * Multiple workspaces can be combined with bitwise OR:
+ *    WORKSPACEBIT(1) | WORKSPACEBIT(3) = 0b00000101 = 5  (viewing workspaces 1 and 3)
+ *
+ * Check if a workspace is in a bitmask with bitwise AND:
+ *    if (WORKSPACEBIT(2) & viewmask)  // Is workspace 2 visible?
+ */
 #define WORKSPACEBIT(W)         (1U << ((W) - 1))
+
 #define SPTAG(i)                (LENGTH(workspace_names) + (i) + 1)
 #define IS_SP_WORKSPACE(W)      ((W) > LENGTH(workspace_names) && (W) <= NUMTAGS)
-#define PERWS(M)                (workspaces[(M)->selected_workspaces[(M)->sel_ws] - 1])
+
+// Returns first workspace belonging to the monitor M. `__builtin_ctz` counts from 
+// the least significant bit (the rightmost bit) up to the first set bit (the first 1).
+#define PERWS(M)                (workspaces[__builtin_ctz((M)->selected_workspaces[(M)->sel_ws])])
+
+/* The WORKSPACEMASK macro gives a binary value that represents a valid bitmask according to how many
+ * tags are defined.
+ *
+ * As an example dwm by default comes with nine tags and the bitmask is a 32 bit integer. In this
+ * case the WORKSPACEMASK macro would return a binary value like this:
+ *
+ *    00000000000000000000000111111111
+ *
+ * but if the configuration was changed so that there are icons defined for four tags then the
+ * WORKSPACEMASK macro would return a binary value like this:
+ *
+ *    00000000000000000000000000001111
+ *
+ * The WORKSPACEMASK is used in various places to restrict and to validate bitmask values used in the
+ * context of what tags are viewed by the monitor and what tags are assigned to a client.
+ */
+#define WORKSPACEMASK           ((1 << NUMTAGS) - 1)
 
 /// Check workspace bounds
 ///    1 <= W <= NUMTAGS
 #define CHECK_WS_BOUNDS(W)      (1 <= (W) && (W) <= NUMTAGS)
+
+/* The TEXTW macro returns the width of a given text string plus the left and right padding.
+ *
+ * Due to that not all fonts have every glyph and we have a primary font and fallback fonts this
+ * macro calls drw_fontset_getwidth which does the exact same thing as when text is drawn, just
+ * that it returns how far the cursor has moved rather than actually drawing the text. */
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
 
 #define MWM_HINTS_FLAGS_FIELD       0
@@ -234,10 +304,12 @@ struct Monitor {
 	 * The benefit of using this mechanism, however, is that we save on a single line of code
 	 * in the view function when the argument is 0 and we toggle back to the previous view.
 	 */
+    /// TODO: remove
 	unsigned int seltags;
 
 	/* This array holds the previously and currently viewed tags for the monitor, the index of
 	 * which is indicated by the seltags variable. */
+    /// TODO: remove
 	unsigned int tagset[2];
 
 	/* This represents the workspaces the monitor owns.
@@ -247,12 +319,12 @@ struct Monitor {
 	 *    001010001  - bitmask
 	 *    987654321  - workspaces
 	 *
-	 * This would mean that the monitor owns workspaces 1, 5 and 7.
+	 * This would mean that the monitor is showing workspaces 1, 5 and 7.
 	 */
     unsigned int workspaces;
 
-    /// The currently selected workspace and the one being displayed on the monitor.
-    /// Also it has the previously displayed workspace.
+    /// The currently selected workspaces and the one being displayed on the monitor.
+    /// Also it has the previously displayed workspaces.
     unsigned int selected_workspaces[2];
 
     int sel_ws;
@@ -482,6 +554,7 @@ void updatesystrayiconstate(Client *i, XPropertyEvent *ev);
 void updatetitle(Client *c);
 void updatewindowtype(Client *c);
 void updatewmhints(Client *c);
+void toggleviewworkspace(const Arg *arg);
 void view(const Arg *arg);
 void viewworkspace(const Arg *arg);
 Client *wintoclient(Window w);
