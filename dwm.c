@@ -253,12 +253,12 @@ applyrules(Client *c)
 	/* Floating scratchpads live on the current workspace while their scratchpad identifier
 	 * remains in c->scratchpad. Tiled scratchpads retain their dedicated workspace. */
 	if (c->scratchpad && c->isfloating)
-		c->workspace = c->mon->selected_workspaces[c->mon->sel_ws];
+		c->workspace = WORKSPACEFROMMASK(c->mon->selected_workspaces[c->mon->sel_ws]);
 
 	/* A client without a valid explicit workspace opens on the active workspace. */
-	c->workspace = c->workspace && CHECK_WS_BOUNDS(c->workspace)
+    c->workspace = c->workspace && CHECK_WS_BOUNDS(c->workspace)
         ? c->workspace
-        : c->mon->selected_workspaces[c->mon->sel_ws];
+        : WORKSPACEFROMMASK(c->mon->selected_workspaces[c->mon->sel_ws]);
 }
 
 
@@ -483,16 +483,16 @@ buttonpress(XEvent *e)
 		i = x = 0;
         unsigned int occ = 0;
 
-        for (c = m->clients; c; c = c->next)
-            if (c->workspace >= 1 && c->workspace <= LENGTH(workspace_names))
-                occ |= WORKSPACEBIT(c->workspace);
+		for (c = m->clients; c; c = c->next) {
+			if (c->workspace >= 1 && c->workspace <= LENGTH(workspace_names))
+				occ |= WORKSPACEBIT(c->workspace);
+		}
 		
-        do {
-            /* Do not reserve space for vacant workspaces. */
-            if (!(occ & (1U << i) || i + 1 == m->selected_workspaces[m->sel_ws]))
-                continue;
-			x += TEXTW(workspace_names[i]);
-        } while (ev->x >= x && ++i < LENGTH(workspace_names));
+		do {
+			/* Do not reserve space for vacant workspaces. */
+			if (occ & (1U << i) || WORKSPACEBIT(i + 1) & m->selected_workspaces[m->sel_ws])
+				x += TEXTW(workspace_names[i]);
+		} while (ev->x >= x && ++i < LENGTH(workspace_names));
 		if (i < LENGTH(workspace_names)) {
 			click = ClkTagBar;
 			arg.ui = i + 1;
@@ -2400,7 +2400,7 @@ sendmon(Client *c, Monitor *m)
 	c->mon = m;
 
     // Set to the currently viewed workspace on the target monitor
-	c->workspace = m->selected_workspaces[m->sel_ws];
+    c->workspace = WORKSPACEFROMMASK(m->selected_workspaces[m->sel_ws]);
 
     // Make a treenode for the newly created client
 	treenode_add(c);
@@ -3287,7 +3287,7 @@ togglescratch(const Arg *arg)
 			if (ISVISIBLE(c))
 				c->workspace = scratchworkspace;
 			else {
-				c->workspace = selmon->selected_workspaces[selmon->sel_ws];
+				c->workspace = WORKSPACEFROMMASK(selmon->selected_workspaces[selmon->sel_ws]);
 				c->x = c->mon->wx + (c->mon->ww / 2 - WIDTH(c) / 2);
 				c->y = c->mon->wy + (c->mon->wh / 2 - HEIGHT(c) / 2);
 			}
@@ -4182,13 +4182,14 @@ toggleviewworkspace(const Arg *arg)
      * Example: Currently viewing workspaces 1 and 3 (0b00000101), toggle workspace 2:
      *    0b00000101 ^ 0b00000010 = 0b00000111 (now viewing 1, 2, and 3)
      */
-	const unsigned int newworkspaceset = selmon->selected_workspaces[selmon->sel_ws] ^ WORKSPACEBIT(arg->ui)
+	const unsigned int newworkspaceset = selmon->selected_workspaces[selmon->sel_ws] ^ WORKSPACEBIT(arg->ui);
 
 	/* This prevents the scenario of toggling away the last viewed tag. I.e. there must be at
 	 * least one tag viewed. */
 	if (newworkspaceset) {
 
-		/* This sets the new tag set for the selected monitor */
+		/* Keep the active workspace mask in sync with the legacy tag set. */
+		selmon->selected_workspaces[selmon->sel_ws] = newworkspaceset;
 		selmon->tagset[selmon->seltags] = newworkspaceset;
 
 		/* The client that had focus may have been on a tag that was toggled away, so give
@@ -4200,6 +4201,8 @@ toggleviewworkspace(const Arg *arg)
 	}
 }
 
+/* User function to move the selected client to become the new master client. If the selected
+ * client is the master client then the master and the next tiled window will swap places. */
 void
 zoom(const Arg *arg)
 {

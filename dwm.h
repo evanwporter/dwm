@@ -82,6 +82,10 @@
  */
 #define WORKSPACEBIT(W)         (1U << ((W) - 1))
 
+/* Converts a non-empty workspace bitmask back to its first workspace number.
+ * Clients belong to one workspace, while a monitor's selection is a bitmask. */
+#define WORKSPACEFROMMASK(M)    (__builtin_ctz(M) + 1U)
+
 #define SPTAG(i)                (LENGTH(workspace_names) + (i) + 1)
 #define IS_SP_WORKSPACE(W)      ((W) > LENGTH(workspace_names) && (W) <= NUMTAGS)
 
@@ -478,7 +482,7 @@ Atom getatomprop(Client *c, Atom prop);
 pid_t getstatusbarpid(void);
 int getrootptr(int *x, int *y);
 long getstate(Window w);
-unsigned int getsystraywidth();
+unsigned int getsystraywidth(void);
 int gettextprop(Window w, Atom atom, char *text, unsigned int size);
 void grabbuttons(Client *c, int focused);
 void grabkeys(void);
