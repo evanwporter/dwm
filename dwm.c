@@ -3186,15 +3186,7 @@ tagmon(const Arg *arg)
 	sendmon(selmon->sel, dirtomon(arg->i));
 }
 
-/* This is what handles the tile layout arrangement.
- *
- * @called_from arrangemon
- * @calls nexttiled to get the next tiled client
- * @calls resize to change the size and position of client windows
- *
- * Internal call stack:
- *    ~ -> arrange -> arrangemon -> tile
- */
+/* This is what handles the tile layout arrangement. */
 void
 tile(Monitor *m)
 {
@@ -3211,7 +3203,7 @@ tile(Monitor *m)
 	 */
 	unsigned int i, n, h, mw, my, ty, bw;
 
-    const Workspace* pertag = workspaces[m->tagset[m->seltags]];
+    const Workspace* workspace = PERWS(m);
 
 	Client *c;
 
@@ -3225,13 +3217,13 @@ tile(Monitor *m)
 	else
 		bw = borderpx;
 
-	if (n > pertag->nmaster)
-		mw = pertag->nmaster ? m->ww * pertag->mfact : 0;
+	if (n > workspace->nmaster)
+		mw = workspace->nmaster ? m->ww * workspace->mfact : 0;
 	else
 		mw = m->ww;
 	for (i = my = ty = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
-		if (i < pertag->nmaster) {
-			h = (m->wh - my) / (MIN(n, pertag->nmaster) - i);
+		if (i < workspace->nmaster) {
+			h = (m->wh - my) / (MIN(n, workspace->nmaster) - i);
 			resize(c, m->wx, m->wy + my, mw - 2*bw, h - 2*bw, bw, 0);
 			if (my + HEIGHT(c) < m->wh)
 				my += HEIGHT(c);
