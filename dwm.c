@@ -650,30 +650,76 @@ cleanup(void)
 	XDeleteProperty(dpy, root, netatom[NetActiveWindow]);
 }
 
+/* This function deals with tearing down a monitor which involves:
+ *    - tidying monitor references
+ *    - destroying the bar window
+ *    - freeing the memory used by the given monitor struct
+ */
 void
 cleanupmon(Monitor *mon)
 {
 	Monitor *m;
 
+	/* The mons (monitors) variable holds the reference to the first monitor in a linked list.
+	 * If the monitor being removed is the first monitor in this linked list, then we detach
+	 * the monitor by setting the mons variable to be the next monitor in the list.
+	 *
+	 * In other words
+	 *    mon -> a -> b -> c -> NULL
+	 *    ^-- mons
+	 *
+	 * becomes
+	 *    mon -> a -> b -> c -> NULL
+	 *           ^-- mons
+	 */
 	if (mon == mons)
 		mons = mons->next;
+
+	/* Otherwise we loop through each monitor until we find the previous monitor (which has
+	 * the given monitor as the next monitor). We then detach the given monitor by having the
+	 * previous monitor skip over it.
+	 *
+	 * In other words
+	 *    a -> b -> mon -> c -> NULL
+	 *
+	 * becomes
+	 *    a -> b -> c -> NULL
+	 */
 	else {
 		for (m = mons; m && m->next != mon; m = m->next);
 		m->next = mon->next;
 	}
+
+	/* Call to unmap the window so that it is no longer shown */
 	XUnmapWindow(dpy, mon->barwin);
+
+	/* Call to destroy the window */
 	XDestroyWindow(dpy, mon->barwin);
+
+	/* Finally free up memory used by the monitor struct */
 	free(mon);
 }
 
+/* This handles ClientMessage events coming from the X server.
+ *
+ * dwm only handles two types of client messages and these are:
+ *
+ *    _NET_WM_STATE > _NET_WM_STATE_FULLSCREEN and
+ *    _NET_ACTIVE_WINDOW
+ *
+ * It is possible to expand this function to handle other states and message types.
+ */
 void
 clientmessage(XEvent *e)
 {
 	XWindowAttributes wa;
 	XSetWindowAttributes swa;
 	XClientMessageEvent *cme = &e->xclient;
+
+	/* Find the client the window is in relation to. */
 	Client *c = wintoclient(cme->window);
 
+	/* If we are not managing this window then ignore the event. */
 	if (showsystray && cme->window == systray->win && cme->message_type == netatom[NetSystemTrayOP]) {
 		/* add systray icons */
 		if (cme->data.l[1] == SYSTEM_TRAY_REQUEST_DOCK) {
@@ -720,13 +766,83 @@ clientmessage(XEvent *e)
 		return;
 	}
 
+	/* If we are not managing this window then ignore the event. */
 	if (!c)
 		return;
+
+    /* This handles the _NET_WM_STATE message type.
+	 *
+	 * To change the state of a mapped window, a client MUST send a _NET_WM_STATE client message
+	 * to the root window.
+	 *
+	 *    window  = the respective client window
+	 *    message_type = _NET_WM_STATE
+	 *    format = 32
+	 *    data.l[0] = the action, as listed below
+	 *    data.l[1] = first property to alter
+	 *    data.l[2] = second property to alter
+	 *    data.l[3] = source indication
+	 *    other data.l[] elements = 0
+	 *
+	 * _NET_WM_STATE_REMOVE        0  // remove/unset property
+	 * _NET_WM_STATE_ADD           1  // add/set property
+	 * _NET_WM_STATE_TOGGLE        2  // toggle property
+	 *
+	 * This message allows two properties to be changed simultaneously, specifically to allow
+	 * both horizontal and vertical maximisation to be altered together. As such we need to
+	 * check both the first and second property when handling state property types.
+	 *
+	 * Possible atoms are:
+	 *
+	 *    _NET_WM_STATE_MODAL
+	 *    _NET_WM_STATE_STICKY
+	 *    _NET_WM_STATE_MAXIMIZED_VERT
+	 *    _NET_WM_STATE_MAXIMIZED_HORZ
+	 *    _NET_WM_STATE_SHADED
+	 *    _NET_WM_STATE_SKIP_TASKBAR
+	 *    _NET_WM_STATE_SKIP_PAGER
+	 *    _NET_WM_STATE_HIDDEN
+	 *    _NET_WM_STATE_FULLSCREEN
+	 *    _NET_WM_STATE_ABOVE
+	 *    _NET_WM_STATE_BELOW
+	 *    _NET_WM_STATE_DEMANDS_ATTENTION
+	 *
+	 * Out of the above dwm only supports _NET_WM_STATE_FULLSCREEN by default.
+	 */
 	if (cme->message_type == netatom[NetWMState]) {
+		/* If the property being changed is _NET_WM_STATE_FULLSCREEN then */
 		if (cme->data.l[1] == netatom[NetWMFullscreen]
 		|| cme->data.l[2] == netatom[NetWMFullscreen])
+            /* call setfullscreen for the client window passing:
+			 *    1 if the action is to add fullscreen
+			 *    1 if the action is to toggle fullscreen and the client is not fullscreen
+			 *    0 otherwise to exit fullscreen
+			 */
 			setfullscreen(c, (cme->data.l[0] == 1 /* _NET_WM_STATE_ADD    */
 				|| (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */ && !c->isfullscreen)));
+
+	/* The below handles the _NET_ACTIVE_WINDOW message type and the action taken by dwm is to
+	 * set the urgency flag for the client unless it is the selected window.
+	 *
+	 * A client marked as urgent will result in the tag the client is present on to have its
+	 * colours inverted (as in the foreground and background colours swapping place) on the bar
+	 * unless the tag is selected.
+	 *
+	 * You can test this by finding the window ID of a given window using xwininfo (e.g.
+	 * 0x5000002) or using xdotool search (94371846) and using xdo or xdotool to activate that
+	 * window.
+	 *
+	 *    $ xdo activate 0x5a00006
+	 *    $ xdotool windowactivate 94371846
+	 *
+	 * Should you need to convert between decimal and hexadecimal window IDs we have:
+	 *
+	 *    $ echo $((0x5a00006))
+	 *    94371846
+	 *
+	 *    $ printf '0x%x\n' 94371846
+	 *    0x5a00006
+	 */
 	} else if (cme->message_type == netatom[NetActiveWindow]) {
 		if (c != selmon->sel && !c->isurgent)
 			seturgent(c, 1);
