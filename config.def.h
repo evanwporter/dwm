@@ -114,7 +114,7 @@ static const Layout layouts[] = {
 static char dmenumon[2] = "0"; /* component of dmenucmd, manipulated in spawn() */
 
 // TODO: think about baking in the color commands into `dmenu_desktop_run`
-static const char *dmenucmd[] = { 
+static const char *dmenucmd[] = {
     "dmenu_desktop_run",
     "-i",
     "-m", dmenumon, 
@@ -122,7 +122,7 @@ static const char *dmenucmd[] = {
     "-nb", normbgcolor,
     "-nf", normfgcolor,
     "-sb", selbgcolor,
-    "-sf", selfgcolor, 
+    "-sf", selfgcolor,
     NULL
 };
 
