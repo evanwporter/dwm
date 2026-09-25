@@ -11,7 +11,8 @@ tree_recurse(const TreeNode *node, int x, int y, int w, int h, int bw)
     assert(node->client || (node->a && node->b));
 
     if (node->client) {
-        resize(node->client, x, y, w, h, bw, 0);
+        // The width and height are shrunk by the borderwidth on both sides
+        resize(node->client, x, y, w - 2 * bw, h - 2 * bw, bw, 0);
         return;
     }
 
@@ -56,7 +57,7 @@ tree(Monitor *m)
     const int bw = root->client ? 0 : borderpx;
 
     // Pass along the window boundaries
-    tree_recurse(root, m->mx, m->my, m->ww, m->wh, bw);
+    tree_recurse(root, m->wx, m->wy, m->ww, m->wh, bw);
 }
 
 static void
