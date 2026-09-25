@@ -115,14 +115,14 @@ static char dmenumon[2] = "0"; /* component of dmenucmd, manipulated in spawn() 
 
 // TODO: think about baking in the color commands into `dmenu_desktop_run`
 static const char *dmenucmd[] = { 
-    "dmenu_run",
-    // "-i",
-    // "-m", dmenumon, 
-    // "-fn", dmenufont, 
-    // "-nb", normbgcolor,
-    // "-nf", normfgcolor,
-    // "-sb", selbgcolor,
-    // "-sf", selfgcolor, 
+    "dmenu_desktop_run",
+    "-i",
+    "-m", dmenumon, 
+    "-fn", dmenufont, 
+    "-nb", normbgcolor,
+    "-nf", normfgcolor,
+    "-sb", selbgcolor,
+    "-sf", selfgcolor, 
     NULL
 };
 
