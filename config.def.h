@@ -123,7 +123,7 @@ static const char *dmenucmd[] = {
     // "-nf", normfgcolor,
     // "-sb", selbgcolor,
     // "-sf", selfgcolor, 
-    // NULL 
+    NULL
 };
 
 // static const char *termcmd[]  = { "/bin/sh", "-c", "exec \"$TERMINAL\"", NULL };
@@ -165,7 +165,7 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[2]} },
     { MODKEY,                       XK_r,      setlayout,      {.v = &layouts[3]} },
     { MODKEY|ShiftMask,             XK_d,      setlayout,      {.v = &layouts[4]} },
-	{ MODKEY,                       XK_space,  togglefloating, {0} },
+	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
     // TODO: Use workspace instead
 	// { MODKEY|ShiftMask,             XK_0,      tag,            {.ui = ~0 } },
