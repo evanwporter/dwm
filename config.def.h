@@ -3,9 +3,10 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include "deck.h"
 #include "dwm.h"
-#include "tree.h"
 #include "palette.h"
+#include "tree.h"
 
 #include <X11/X.h>
 #include <X11/Xutil.h>
@@ -93,7 +94,8 @@ static const Layout layouts[] = {
 	{ "[M]",      monocle },
 	{ "[]=",      tile },    /* first entry is default */
 	{ "><>",      NULL },    /* no layout function means floating behavior */
-    { "[T]",      tree }
+    { "[T]",      tree },
+    { "[D]",      deck }
 };
 
 /* key definitions */
@@ -113,16 +115,17 @@ static char dmenumon[2] = "0"; /* component of dmenucmd, manipulated in spawn() 
 
 // TODO: think about baking in the color commands into `dmenu_desktop_run`
 static const char *dmenucmd[] = { 
-    "dmenu_desktop_run",
-    "-i",
-    "-m", dmenumon, 
-    "-fn", dmenufont, 
-    "-nb", normbgcolor,
-    "-nf", normfgcolor,
-    "-sb", selbgcolor,
-    "-sf", selfgcolor, 
-    NULL 
+    "dmenu_run",
+    // "-i",
+    // "-m", dmenumon, 
+    // "-fn", dmenufont, 
+    // "-nb", normbgcolor,
+    // "-nf", normfgcolor,
+    // "-sb", selbgcolor,
+    // "-sf", selfgcolor, 
+    // NULL 
 };
+
 // static const char *termcmd[]  = { "/bin/sh", "-c", "exec \"$TERMINAL\"", NULL };
 static const char *termcmd[]  = { "st", NULL };
 static const char *flameshot[] = {
@@ -154,14 +157,15 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_Right,  tree_change_proportion, {.i = 3}},
 	{ MODKEY,                       XK_i,      incnmaster,     {.i = +1 } },
 	{ MODKEY,                       XK_d,      incnmaster,     {.i = -1 } },
-	{ MODKEY,                       XK_Return, zoom,           {0} },
+	{ MODKEY|ShiftMask,             XK_Return, zoom,           {0} },
 	{ MODKEY,                       XK_Tab,    view,           {0} },
 	{ MODKEY,                       XK_q,      killclient,     {0} },
 	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[1]} },
 	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[2]} },
     { MODKEY,                       XK_r,      setlayout,      {.v = &layouts[3]} },
-	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
+    { MODKEY|ShiftMask,             XK_d,      setlayout,      {.v = &layouts[4]} },
+	{ MODKEY,                       XK_space,  togglefloating, {0} },
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
     // TODO: Use workspace instead
 	// { MODKEY|ShiftMask,             XK_0,      tag,            {.ui = ~0 } },

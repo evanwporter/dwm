@@ -3,7 +3,7 @@
 
 include config.mk
 
-SRC = drw.c dwm.c keymaps.c
+SRC = drw.c dwm.c keymaps.c deck.c
 OBJ = ${SRC:.c=.o}
 
 UTIL_SRC = util.c tree.c
