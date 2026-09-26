@@ -1,3 +1,4 @@
+#include "conveyor.h"
 #include "dwm.h"
 #include "tree.h"
 
@@ -14,11 +15,27 @@ intree(void)
     return layout->arrange == tree || !strcmp(layout->symbol, "[T]");
 }
 
+static int
+in_conveyor(void)
+{
+    const Layout *layout;
+
+    if (!selmon || !(layout = PERWS(selmon)->lt[PERWS(selmon)->sellt]))
+        return 0;
+
+    return layout->arrange == conveyor || !strcmp(layout->symbol, "[T]");
+}
+
 void
 key_move(const Arg *arg)
 {
     if (intree()) {
         treenode_navigate(arg);
+        return;
+    }
+
+    if (in_conveyor()) {
+        conveyor_move(arg);
         return;
     }
 
