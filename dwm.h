@@ -349,6 +349,9 @@ struct Monitor {
 
 	/* This is the bar window which is used to draw the bar. Each monitor has their own bar. */
 	Window barwin;
+
+    /// For the SCROLL layout this is the percentage that defines the left edge of the screen
+    int anchor;
 };
 
 typedef struct Workspace {
