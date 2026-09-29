@@ -6,6 +6,7 @@
 #include "deck.h"
 #include "dwm.h"
 #include "conveyor.h"
+#include "scroll.h"
 #include "palette.h"
 #include "tree.h"
 
@@ -92,7 +93,8 @@ static const Layout layouts[] = {
 	{ "><>",      NULL },    /* no layout function means floating behavior */
     { "[T]",      tree },
     { "[D]",      deck },
-    { "[C]",      conveyor }
+    // { "[C]",      conveyor },
+    { "[S]",      scroll }
 };
 
 /* key definitions */

@@ -232,6 +232,10 @@ struct Client {
 
     /// The icon to display in the tabline / window titles
     char *icon;
+
+    /// Client Scroll Width
+    /// TODO
+    int scrollw;
 };
 
 typedef struct {
