@@ -16,6 +16,7 @@ conveyor(Monitor *m)
 {
     Client *c = nexttiled(m->clients);
 
+    /// TODO: I believe we can pull out the picom animate somewhere
     Atom picom_animate = XInternAtom(dpy, "_PICOM_ANIMATE", False);
 
     /// The position of focused client in the current workspace client stack
@@ -81,6 +82,7 @@ conveyor(Monitor *m)
             x = (mw / 2) + (width / 2) + gap;
         }
 
+        /// TODO: make sure we calculate the borderpx into the gap
         resize(c, x, 0, width - (borderpx * 2), m->wh - (borderpx * 2), borderpx, 0);
     }
 }
@@ -90,9 +92,8 @@ conveyor(Monitor *m)
 static void
 conveyor_left(int dir)
 {
-    if (focused_position == 0) {
+    if (focused_position == 0) 
         return;
-    }
     else if (focused_position == 1) {
         focused_position = 2;
     }
