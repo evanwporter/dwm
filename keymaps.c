@@ -1,5 +1,6 @@
 #include "conveyor.h"
 #include "dwm.h"
+#include "scroll.h"
 #include "tree.h"
 
 #include <string.h>

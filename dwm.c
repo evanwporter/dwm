@@ -1759,6 +1759,10 @@ manage(Window w, XWindowAttributes *wa)
 	 * unmanaging a client that is not destroyed. */
 	c->oldbw = wa->border_width;
 
+    // TODO: We need to make a config value for the default scrollwidth
+    // Set the default width of new windows in the scrolling layout
+    c->scrollw = 33;
+
 	/* Reads and stores the window title in the client's name variable. */
 	updatetitle(c);
 
@@ -2016,6 +2020,7 @@ nexttiled(Client *c)
 	/* Return the client found, if any, will be NULL if the linked list is exhausted. */
 	return c;
 }
+
 
 void
 pop(Client *c)
