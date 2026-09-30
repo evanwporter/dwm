@@ -31,15 +31,17 @@ scroll(Monitor *m)
         m->anchor = (focused_num - 1) * 33;
     }
 
-    int x = -1 * (m->anchor / 100) * m->ww;
+    int x = -(m->anchor * m->ww) / 100;
 
     c = nexttiled(m->clients);
 
-    /// TODO: 33 should be the client scroll width
-    const int width = (int)(0.333 * m->ww);
+    for (; c; c = nexttiled(c->next)) {
+        const int width = (c->scrollw * m->ww) / 100;
 
-    for (; c; x += width, c = nexttiled(c->next))
         resize(c, x, 0, width, m->wh, borderpx, 0);
+        
+        x += width;
+    }
 }
 
 void
@@ -49,7 +51,7 @@ scroll_right(void)
     Client *focus = nexttiled(selmon->sel);
 
     /// If its null we don't do anything
-    if (focus) return;
+    if (!focus) return;
    
     /// Relatively where on the screen the left edge of window
     /// we want to focus too
@@ -80,6 +82,32 @@ scroll_right(void)
     }
 
     focusstackvis(&(Arg){ .i = +1 });
+}
+
+void
+scroll_increase_width(const Arg *arg)
+{
+    selmon->sel->scrollw += 5;
+
+    /// Relatively where on the screen the left edge of window
+    /// we want to focus too
+    int new_start = 0;
+
+    /// Collect the total width
+    Client *c = nexttiled(selmon->clients);
+    for (; c; c = nexttiled(c->next)) {
+        if (c == selmon->sel) {
+            break;
+        }
+
+        new_start += c->scrollw;
+    }
+
+    if (selmon->sel->scrollw + new_start - selmon->anchor > 100) {
+        selmon->anchor += 5;
+    }
+
+    scroll(selmon);
 }
 
 void

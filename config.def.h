@@ -203,6 +203,7 @@ static const Key keys[] = {
     TAGKEYS(                        XK_s,                      9)
 	{ MODKEY|ShiftMask,             XK_e,      quit,           {0} },
 	{ MODKEY|ShiftMask,             XK_c,      quit,           {.i = 1} },
+    { MODKEY,                        XK_equal,  scroll_increase_width, {} },
 };
 
 /* button definitions */
