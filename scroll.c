@@ -19,7 +19,7 @@ void
 scroll(Monitor *m)
 {
     Client *c;
-    if (in_scroll()) {
+    if (!in_scroll()) {
         // TODO: we should not have to set the anchor here
         int n = 0;
         int focused_num = 0;
@@ -80,6 +80,17 @@ scroll_right(void)
     }
 
     focusstackvis(&(Arg){ .i = +1 });
+}
+
+void
+scroll_move(const Arg *arg)
+{
+    switch (arg->i) {
+    case 0: setmfact(&(Arg){ .f = -0.05f }); break; /* h / left */
+    case 1: focusstackvis(&(Arg){ .i = +1 }); break; /* j / down */
+    case 2: focusstackvis(&(Arg){ .i = -1 }); break; /* k / up */
+    case 3: scroll_right(); break; /* l / right */
+    }
 }
 
 #endif // SCROLL_H

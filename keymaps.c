@@ -40,6 +40,11 @@ key_move(const Arg *arg)
         return;
     }
 
+    if (in_scroll()) {
+        scroll_move(arg);
+        return;
+    }
+
     switch (arg->i) {
     case 0: setmfact(&(Arg){ .f = -0.05f }); break; /* h / left */
     case 1: focusstackvis(&(Arg){ .i = +1 }); break; /* j / down */

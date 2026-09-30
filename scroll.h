@@ -2,4 +2,6 @@
 
 void scroll(Monitor *m);
 
-void scroll_right(void);
+void scroll_move(const Arg *arg);
+
+int in_scroll(void);
