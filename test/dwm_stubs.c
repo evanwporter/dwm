@@ -269,3 +269,26 @@ resizemouse(const Arg *arg)
 {
     (void)arg;
 }
+
+
+// TODO: put somewhere
+
+void
+focusstackvis(const Arg *arg)
+{
+    if (!selmon || !selmon->sel)
+        return;
+
+    if (arg->i > 0) {
+        Client *next = nexttiled(selmon->sel->next);
+
+        if (next)
+            selmon->sel = next;
+    }
+}
+
+void
+setmfact(const Arg *arg)
+{
+    (void)arg;
+}
