@@ -39,7 +39,7 @@ scroll(Monitor *m)
     const int width = (int)(0.333 * m->ww);
 
     for (; c; x += width, c = nexttiled(c->next))
-        resize(c, x, 0, width, m->mh, borderpx, 0);
+        resize(c, x, 0, width, m->wh, borderpx, 0);
 }
 
 void
