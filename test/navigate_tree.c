@@ -3,7 +3,7 @@
 #include "../tree.h"
 #include "util.h"
 
-Test(navigate_node, navigating_ba_up_focuses_a)
+Test(tree_navigate_node, navigating_ba_up_focuses_a)
 {
     /* Initial:       Final:
      * ┌───────┐      ┌───────┐
@@ -27,7 +27,7 @@ Test(navigate_node, navigating_ba_up_focuses_a)
     selmon = NULL;
 }
 
-Test(navigate_node, navigating_bb_up_focuses_baa_in_a_nested_tree)
+Test(tree_navigate_node, navigating_bb_up_focuses_baa_in_a_nested_tree)
 {
     /* Initial and final layout; *bb is focused initially and *baa finally:
      * ┌───┬───┐
@@ -76,7 +76,7 @@ Test(navigate_node, navigating_bb_up_focuses_baa_in_a_nested_tree)
     selmon = NULL;
 }
 
-Test(navigate_node, navigating_baa_left_keeps_focus_at_the_left_edge)
+Test(tree_navigate_node, navigating_baa_left_keeps_focus_at_the_left_edge)
 {
     /* ┌───┬───┐
      * │aaa│ ab│
@@ -98,7 +98,7 @@ Test(navigate_node, navigating_baa_left_keeps_focus_at_the_left_edge)
     selmon = NULL;
 }
 
-Test(navigate_node, navigating_baa_down_focuses_bb)
+Test(tree_navigate_node, navigating_baa_down_focuses_bb)
 {
     /* ┌───┬───┐
      * │aaa│ ab│
@@ -120,7 +120,7 @@ Test(navigate_node, navigating_baa_down_focuses_bb)
     selmon = NULL;
 }
 
-Test(navigate_node, navigating_baa_up_focuses_aab)
+Test(tree_navigate_node, navigating_baa_up_focuses_aab)
 {
     /* ┌───┬───┐
      * │aaa│ ab│
@@ -142,7 +142,7 @@ Test(navigate_node, navigating_baa_up_focuses_aab)
     selmon = NULL;
 }
 
-Test(navigate_node, navigating_baa_right_focuses_bab)
+Test(tree_navigate_node, navigating_baa_right_focuses_bab)
 {
     /* ┌───┬───┐
      * │aaa│ ab│

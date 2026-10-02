@@ -4,7 +4,7 @@
 #include "../tree.h"
 
 
-Test(auto_add, inserts_next_to_the_shallowest_leaf_not_the_focused_client)
+Test(tree_auto_add, inserts_next_to_the_shallowest_leaf_not_the_focused_client)
 {
     /* The shallowest leaf is a, while ba is the currently focused client.
      *

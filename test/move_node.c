@@ -3,7 +3,7 @@
 #include "../tree.h"
 #include "util.h"
 
-Test(move_node, moving_a_down_swaps_a_and_b)
+Test(tree_move_node, moving_a_down_swaps_a_and_b)
 {
     /* Initial:       Final:
      * ┌───┐          ┌───┐
@@ -25,7 +25,7 @@ Test(move_node, moving_a_down_swaps_a_and_b)
     selmon = NULL;
 }
 
-Test(move_node, moving_client_then_removing_all_leaves_no_stale_nodes)
+Test(tree_move_node, moving_client_then_removing_all_leaves_no_stale_nodes)
 {
     Monitor monitor = {0};
     Client a = {.mon = &monitor, .workspace = 1};
@@ -50,7 +50,7 @@ Test(move_node, moving_client_then_removing_all_leaves_no_stale_nodes)
     selmon = NULL;
 }
 
-Test(move_node, moving_a_left_changes_to_side_by_side)
+Test(tree_move_node, moving_a_left_changes_to_side_by_side)
 {
     /* Initial:       Final:
      * ┌───┐          ┌───┬───┐
@@ -71,7 +71,7 @@ Test(move_node, moving_a_left_changes_to_side_by_side)
     selmon = NULL;
 }
 
-Test(move_node, moving_ba_right_swaps_ba_and_bb)
+Test(tree_move_node, moving_ba_right_swaps_ba_and_bb)
 {
     /* Initial:       Final:
      * ┌───────┐      ┌───────┐
@@ -96,7 +96,7 @@ Test(move_node, moving_ba_right_swaps_ba_and_bb)
     selmon = NULL;
 }
 
-Test(move_node, moving_ba_up_stacks_ba_and_bb)
+Test(tree_move_node, moving_ba_up_stacks_ba_and_bb)
 {
     /* Initial:       Final:
      * ┌───────┐      ┌───────┐
@@ -122,7 +122,7 @@ Test(move_node, moving_ba_up_stacks_ba_and_bb)
     selmon = NULL;
 }
 
-Test(move_node, moving_ba_left_flips_the_outer_split)
+Test(tree_move_node, moving_ba_left_flips_the_outer_split)
 {
     /* Initial:       Final:
      * ┌───────┐      ┌───┬───┐

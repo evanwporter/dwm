@@ -3903,7 +3903,7 @@ viewworkspace(const Arg *arg)
 
 	/* If the given workspace is the same as what is currently shown then do nothing. This makes
 	 * it so that if you are on workspace 7 and you hit MOD+7 then nothing happens. */
-	if (WORKSPACEBIT(arg->ui) & selmon->selected_workspaces[selmon->sel_ws])
+    if (WORKSPACEBIT(arg->ui) & selmon->selected_workspaces[selmon->sel_ws])
 		return;  // Already on this workspace
 
 	/* This toggles between the previous and current tagset. */
@@ -4182,7 +4182,7 @@ toggleviewworkspace(const Arg *arg)
      * Example: Currently viewing workspaces 1 and 3 (0b00000101), toggle workspace 2:
      *    0b00000101 ^ 0b00000010 = 0b00000111 (now viewing 1, 2, and 3)
      */
-	const unsigned int newworkspaceset = selmon->selected_workspaces[selmon->sel_ws] ^ WORKSPACEBIT(arg->ui);
+    const unsigned int newworkspaceset = selmon->selected_workspaces[selmon->sel_ws] ^ WORKSPACEBIT(arg->ui);
 
 	/* This prevents the scenario of toggling away the last viewed tag. I.e. there must be at
 	 * least one tag viewed. */

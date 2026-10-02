@@ -3,7 +3,7 @@
 #include "../tree.h"
 #include "util.h"
 
-Test(proportion, vertical_directions_adjust_the_stacked_split)
+Test(tree_proportion, vertical_directions_adjust_the_stacked_split)
 {
     /* ┌───┐
      * │*a │
@@ -36,7 +36,7 @@ Test(proportion, vertical_directions_adjust_the_stacked_split)
     selmon = NULL;
 }
 
-Test(proportion, vertical_bottom_edge_uses_the_opposite_boundary)
+Test(tree_proportion, vertical_bottom_edge_uses_the_opposite_boundary)
 {
     /* ┌───┐
      * │ a │
@@ -61,7 +61,7 @@ Test(proportion, vertical_bottom_edge_uses_the_opposite_boundary)
     selmon = NULL;
 }
 
-Test(proportion, horizontal_directions_adjust_the_side_by_side_split)
+Test(tree_proportion, horizontal_directions_adjust_the_side_by_side_split)
 {
     /* ┌───┬───┐
      * │*a │ b │
@@ -85,7 +85,7 @@ Test(proportion, horizontal_directions_adjust_the_side_by_side_split)
     selmon = NULL;
 }
 
-Test(proportion, adjusts_the_nearest_crossable_ancestor)
+Test(tree_proportion, adjusts_the_nearest_crossable_ancestor)
 {
     /* ┌───────┐
      * │   a   │
@@ -109,7 +109,7 @@ Test(proportion, adjusts_the_nearest_crossable_ancestor)
     selmon = NULL;
 }
 
-Test(proportion, clamps_at_limits)
+Test(tree_proportion, clamps_at_limits)
 {
     /* ┌───┬───┐
      * │*a │ b │

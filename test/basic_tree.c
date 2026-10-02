@@ -2,7 +2,7 @@
 
 #include "../tree.h"
 
-Test(basic_tree, guard_clauses_ignore_invalid_or_duplicate_operations)
+Test(tree_basic, guard_clauses_ignore_invalid_or_duplicate_operations)
 {
     Monitor monitor = {0};
     Client client = {.mon = &monitor, .workspace = 1};
@@ -24,7 +24,7 @@ Test(basic_tree, guard_clauses_ignore_invalid_or_duplicate_operations)
     cr_assert_null(client.node);
 }
 
-Test(basic_tree, adding_first_client_creates_leaf_root)
+Test(tree_basic, adding_first_client_creates_leaf_root)
 {
     Monitor monitor = {0};
     Client client = {.mon = &monitor, .workspace = 1};
@@ -42,7 +42,7 @@ Test(basic_tree, adding_first_client_creates_leaf_root)
     cr_assert_null(client.node);
 }
 
-Test(basic_tree, adding_second_client_splits_focused_leaf)
+Test(tree_basic, adding_second_client_splits_focused_leaf)
 {
     Monitor monitor = {0};
     Client first = {.mon = &monitor, .workspace = 1};
@@ -68,7 +68,7 @@ Test(basic_tree, adding_second_client_splits_focused_leaf)
     cr_assert_null(workspaces[0]->root);
 }
 
-Test(basic_tree, restart_add_uses_workspace_tree_when_monitor_focus_is_elsewhere)
+Test(tree_basic, restart_add_uses_workspace_tree_when_monitor_focus_is_elsewhere)
 {
     Monitor monitor = {0};
     Client first = {.mon = &monitor, .workspace = 1};
@@ -95,7 +95,7 @@ Test(basic_tree, restart_add_uses_workspace_tree_when_monitor_focus_is_elsewhere
     cr_assert_null(workspaces[1]->root);
 }
 
-Test(basic_tree, removing_leaf_promotes_sibling_and_preserves_tree)
+Test(tree_basic, removing_leaf_promotes_sibling_and_preserves_tree)
 {
     Monitor monitor = {0};
     Client first = {.mon = &monitor, .workspace = 1};
