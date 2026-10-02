@@ -50,7 +50,7 @@ void
 scroll_right(void)
 {
     /// The window we want to move the focus too
-    Client *focus = nexttiled(selmon->sel);
+    Client *focus = nexttiled(selmon->sel->next);
 
     /// If its null we don't do anything
     if (!focus) return;
@@ -72,8 +72,6 @@ scroll_right(void)
     const int new_end = new_start + focus->scrollw;
 
     if (new_end - 100 <= selmon->anchor) {
-        // I'm not sure why end - 100 == anchor?
-        
         // This means that we able to display the full window
         // without needed to adjust the anchor at all
     } else {
