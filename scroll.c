@@ -1,6 +1,3 @@
-#ifndef SCROLL_H
-#define SCROLL_H
-
 #include "config.h"
 #include "dwm.h"
 
@@ -19,26 +16,31 @@ void
 scroll(Monitor *m)
 {
     Client *c;
-    if (!in_scroll()) {
-        // TODO: we should not have to set the anchor here
-        int n = 0;
-        int focused_num = 0;
-        Client *c = nexttiled(m->clients);
-        for (; c; c = nexttiled(c->next), n++) {
-            if (c == m->sel)
-                focused_num = n;
-        }
-        m->anchor = (focused_num - 1) * 33;
-    }
 
-    int x = -(m->anchor * m->ww) / 100;
+    /// TODO on switching layouts or exiting this one we set anchor to 
+    /// show the focused client on the far left
+
+    // if (!in_scroll()) {
+    //     // TODO: we should not have to set the anchor here
+    //     int n = 0;
+    //     int focused_num = 0;
+    //     Client *c = nexttiled(m->clients);
+    //     for (; c; c = nexttiled(c->next), n++) {
+    //         if (c == m->sel)
+    //             focused_num = n;
+    //     }
+    //     m->anchor = (focused_num - 1) * 33;
+    // }
+
+    // Calculate x relative to the monitor x position
+    int x = -((m->anchor * m->ww) / 100) + m->wx;
 
     c = nexttiled(m->clients);
 
     for (; c; c = nexttiled(c->next)) {
         const int width = (c->scrollw * m->ww) / 100;
 
-        resize(c, x, 0, width, m->wh, borderpx, 0);
+        resize(c, x, m->wy, width, m->wh, borderpx, 0);
         
         x += width;
     }
@@ -120,5 +122,3 @@ scroll_move(const Arg *arg)
     case 3: scroll_right(); break; /* l / right */
     }
 }
-
-#endif // SCROLL_H

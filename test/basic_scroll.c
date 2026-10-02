@@ -2,27 +2,39 @@
 
 #include "../scroll.h"
 
+#define ASSERT_INT_EQ(actual, expected) \
+    cr_assert_eq( \
+        (actual), \
+        (expected), \
+        "%s = %d, expected %d", \
+        #actual, \
+        (actual), \
+        (expected) \
+    )
+
 void scroll_right(void);
 
-/*
- * These tests describe the DESIRED scroll-layout behavior.
- *
- * They are intentionally not written around the current implementation.
- * Several should fail until scroll layout is fixed.
- */
+static const Layout test_scroll_layout = {
+    .symbol = "[C]",
+    .arrange = scroll,
+};
 
 static void
 link_clients(Monitor *monitor, Client *clients, int count)
 {
     monitor->clients = &clients[0];
+    monitor->sel_ws = 0;
+    monitor->selected_workspaces[0] = WORKSPACEBIT(1);
+    workspaces[0]->sellt = 0;
+    workspaces[0]->lt[0] = &test_scroll_layout;
 
     for (int i = 0; i < count; i++) {
         clients[i].mon = monitor;
+        clients[i].workspace = 1;
         clients[i].next = (i + 1 < count) ? &clients[i + 1] : NULL;
         clients[i].isfloating = 0;
     }
 }
-
 
 /*
  * ┌──────────────── viewport = 100% ────────────────┐
@@ -58,15 +70,14 @@ Test(scroll_layout, two_half_width_clients_fill_monitor)
 
     scroll(&monitor);
 
-    cr_assert_eq(clients[0].x, 0);
-    cr_assert_eq(clients[0].w, 500);
+    ASSERT_INT_EQ(clients[0].x, 0);
+    ASSERT_INT_EQ(clients[0].w, 500);
 
-    cr_assert_eq(clients[1].x, 500);
-    cr_assert_eq(clients[1].w, 500);
+    ASSERT_INT_EQ(clients[1].x, 500);
+    ASSERT_INT_EQ(clients[1].w, 500);
 
     selmon = NULL;
 }
-
 
 /*
  * Monitor begins at (100, 50):
@@ -108,11 +119,11 @@ Test(scroll_layout, respects_monitor_position)
 
     scroll(&monitor);
 
-    cr_assert_eq(clients[0].x, 100);
-    cr_assert_eq(clients[0].y, 50);
+    ASSERT_INT_EQ(clients[0].x, 100);
+    ASSERT_INT_EQ(clients[0].y, 50);
 
-    cr_assert_eq(clients[1].x, 600);
-    cr_assert_eq(clients[1].y, 50);
+    ASSERT_INT_EQ(clients[1].x, 600);
+    ASSERT_INT_EQ(clients[1].y, 50);
 
     selmon = NULL;
 }
@@ -166,14 +177,32 @@ Test(scroll_navigation, moving_right_scrolls_minimum_amount_to_reveal_client)
     monitor.sel = &clients[1];
     selmon = &monitor;
 
+    // TODO: call scroll_move and get rid of call to scroll
     scroll_right();
+    scroll(&monitor);
 
+    // Check that focus has changed
     cr_assert_eq(monitor.sel, &clients[2]);
-    cr_assert_eq(monitor.anchor, 50);
+
+    ASSERT_INT_EQ(monitor.anchor, 50);
+
+    ASSERT_INT_EQ(clients[0].x, -500);
+    ASSERT_INT_EQ(clients[0].y, 0);
+    ASSERT_INT_EQ(clients[0].w, 500);
+    ASSERT_INT_EQ(clients[0].h, 600);
+
+    ASSERT_INT_EQ(clients[1].x, 0);
+    ASSERT_INT_EQ(clients[1].y, 0);
+    ASSERT_INT_EQ(clients[1].w, 500);
+    ASSERT_INT_EQ(clients[1].h, 600);
+
+    ASSERT_INT_EQ(clients[2].x, 500);
+    ASSERT_INT_EQ(clients[2].y, 0);
+    ASSERT_INT_EQ(clients[2].w, 500);
+    ASSERT_INT_EQ(clients[2].h, 600);
 
     selmon = NULL;
 }
-
 
 /*
  * Full layout:
@@ -218,11 +247,10 @@ Test(scroll_navigation, moving_right_does_not_scroll_when_client_is_visible)
     scroll_right();
 
     cr_assert_eq(monitor.sel, &clients[2]);
-    cr_assert_eq(monitor.anchor, 0);
+    ASSERT_INT_EQ(monitor.anchor, 0);
 
     selmon = NULL;
 }
-
 
 /*
  * Full layout:
@@ -233,7 +261,7 @@ Test(scroll_navigation, moving_right_does_not_scroll_when_client_is_visible)
  * └──────────────────────────┴──────────┘
  *
  *                                        viewport
- * Initial:                         ┌───────────────────┐
+ * Initial:                        ┌───────────────────┐
  *                                 │ tail A │   *B*    │
  *                                 └───────────────────┘
  *
@@ -269,11 +297,10 @@ Test(scroll_navigation, right_uses_actual_client_widths)
     scroll_right();
 
     cr_assert_eq(monitor.sel, &clients[1]);
-    cr_assert_eq(monitor.anchor, 80);
+    ASSERT_INT_EQ(monitor.anchor, 80);
 
     selmon = NULL;
 }
-
 
 /*
  * Before:
@@ -320,12 +347,11 @@ Test(scroll_resize, increasing_right_edge_client_keeps_it_visible)
 
     scroll_increase_width(NULL);
 
-    cr_assert_eq(clients[1].scrollw, 55);
-    cr_assert_eq(monitor.anchor, 5);
+    ASSERT_INT_EQ(clients[1].scrollw, 55);
+    ASSERT_INT_EQ(monitor.anchor, 5);
 
     selmon = NULL;
 }
-
 
 /*
  * Before:
@@ -372,8 +398,8 @@ Test(scroll_resize, increasing_width_moves_anchor_only_as_much_as_needed)
 
     scroll_increase_width(NULL);
 
-    cr_assert_eq(clients[1].scrollw, 85);
-    cr_assert_eq(monitor.anchor, 55);
+    ASSERT_INT_EQ(clients[1].scrollw, 85);
+    ASSERT_INT_EQ(monitor.anchor, 55);
 
     selmon = NULL;
 }
