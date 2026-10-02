@@ -94,7 +94,7 @@ static const Layout layouts[] = {
     { "[T]",      tree },
     { "[D]",      deck },
     // { "[C]",      conveyor },
-    { "[S]",      scroll }
+    { "[S]",      scroll,      scroll_exit}
 };
 
 /* key definitions */

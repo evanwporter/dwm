@@ -16,8 +16,16 @@
 //   - on increase the anchor should move right to keep entire client in focus
 //     but not past the left edge of the client
 //   - on decrease the anchor should stay fixed
+//     unless a gap between the right edge were to be shown
+//   - also it should extend up to the right edge
 // client wider than viewport
 // scroll left
+// spawn new window
+//   - should spawn it to the right of the currently focused window (rather than top of the stack)
+//   - we can do so setting selmon->sel->next to our newly spawned window
+// THINK ABOUT A BIT MORE: on entering the scroll layout for the first time 
+// it should automatically set all scrollw to ensure the screen is completely 
+// filled up
 
 #define ASSERT_INT_EQ(actual, expected) \
     cr_assert_eq( \

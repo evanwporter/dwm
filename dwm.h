@@ -248,6 +248,7 @@ typedef struct {
 typedef struct {
 	const char *symbol;
 	void (*arrange)(Monitor *);
+    void (*exit)(Monitor *);
 } Layout;
 
 struct Monitor {

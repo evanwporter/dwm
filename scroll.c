@@ -32,17 +32,17 @@ scroll(Monitor *m)
     /// TODO on switching layouts or exiting this one we set anchor to 
     /// show the focused client on the far left
 
-    // if (!in_scroll()) {
-    //     // TODO: we should not have to set the anchor here
-    //     int n = 0;
-    //     int focused_num = 0;
-    //     Client *c = nexttiled(m->clients);
-    //     for (; c; c = nexttiled(c->next), n++) {
-    //         if (c == m->sel)
-    //             focused_num = n;
-    //     }
-    //     m->anchor = (focused_num - 1) * 33;
-    // }
+    if (!in_scroll()) {
+        // TODO: we should not have to set the anchor here
+        int n = 0;
+        int focused_num = 0;
+        Client *c = nexttiled(m->clients);
+        for (; c; c = nexttiled(c->next), n++) {
+            if (c == m->sel)
+                focused_num = n;
+        }
+        m->anchor = (focused_num - 1) * 33;
+    }
 
     // Calculate x relative to the monitor x position
     int x = -((m->anchor * m->ww) / 100) + m->wx;
@@ -56,6 +56,12 @@ scroll(Monitor *m)
         
         x += width;
     }
+}
+
+void
+scroll_exit(Monitor *m)
+{
+    (void)(m);
 }
 
 void
@@ -95,6 +101,8 @@ scroll_right(void)
     }
 
     focusstackvis(&(Arg){ .i = +1 });
+
+    arrange(selmon);
 }
 
 void
@@ -128,6 +136,8 @@ scroll_left(void)
     }
 
     focusstackvis(&(Arg){ .i = -1 });
+
+    arrange(selmon);
 }
 
 void
@@ -160,7 +170,7 @@ void
 scroll_move(const Arg *arg)
 {
     switch (arg->i) {
-    case 0: setmfact(&(Arg){ .f = -0.05f }); break; /* h / left */
+    case 0: scroll_left(); break; /* h / left */
     case 1: focusstackvis(&(Arg){ .i = +1 }); break; /* j / down */
     case 2: focusstackvis(&(Arg){ .i = -1 }); break; /* k / up */
     case 3: scroll_right(); break; /* l / right */
