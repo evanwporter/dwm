@@ -2,6 +2,23 @@
 
 #include "../scroll.h"
 
+// DESIRED BEHAVIOR
+// layout uses each client’s scrollw
+// layout respects monitor origin
+// moving right focuses the next client
+// viewport only moves when needed
+// viewport movement uses actual cumulative widths
+// increasing selected client width keeps it visible
+// anchor moves only the minimum necessary amount
+//
+// TODO
+// increasing decreasing scrollw of focused client
+//   - on increase the anchor should move right to keep entire client in focus
+//     but not past the left edge of the client
+//   - on decrease the anchor should stay fixed
+// client wider than viewport
+// scroll left
+
 #define ASSERT_INT_EQ(actual, expected) \
     cr_assert_eq( \
         (actual), \
