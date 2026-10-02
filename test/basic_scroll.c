@@ -31,6 +31,8 @@
 
 void scroll_right(void);
 
+void scroll_left(void);
+
 static const Layout test_scroll_layout = {
     .symbol = "[C]",
     .arrange = scroll,
@@ -417,6 +419,203 @@ Test(scroll_resize, increasing_width_moves_anchor_only_as_much_as_needed)
 
     ASSERT_INT_EQ(clients[1].scrollw, 85);
     ASSERT_INT_EQ(monitor.anchor, 55);
+
+    selmon = NULL;
+}
+
+/*
+ * Full layout:
+ *
+ * ┌───────────────┬───────────────┬───────────────┐
+ * │       A       │       B       │       C       │
+ * │      50%      │      50%      │      50%      │
+ * └───────────────┴───────────────┴───────────────┘
+ *
+ * Initial viewport:
+ *
+ *                 ┌───────────────────────────────┐
+ *                 │      *B*      │       C       │
+ *                 └───────────────────────────────┘
+ *                 ^
+ *             anchor = 50
+ *
+ * Left:
+ *
+ * ┌───────────────────────────────┐
+ * │      *A*      │       B       │
+ * └───────────────────────────────┘
+ *
+ * Moving from B -> A requires moving the anchor from 50 to 0.
+ */
+Test(scroll_navigation, moving_left_scrolls_minimum_amount_to_reveal_client)
+{
+    Monitor monitor = {
+        .wx = 0,
+        .wy = 0,
+        .ww = 1000,
+        .wh = 600,
+        .anchor = 50,
+    };
+
+    Client clients[3] = {
+        {.scrollw = 50},
+        {.scrollw = 50},
+        {.scrollw = 50},
+    };
+
+    link_clients(&monitor, clients, 3);
+
+    monitor.sel = &clients[1];
+    selmon = &monitor;
+
+    scroll_left();
+    scroll(&monitor);
+
+    cr_assert_eq(monitor.sel, &clients[0]);
+
+    ASSERT_INT_EQ(monitor.anchor, 0);
+
+    ASSERT_INT_EQ(clients[0].x, 0);
+    ASSERT_INT_EQ(clients[0].w, 500);
+
+    ASSERT_INT_EQ(clients[1].x, 500);
+    ASSERT_INT_EQ(clients[1].w, 500);
+
+    ASSERT_INT_EQ(clients[2].x, 1000);
+    ASSERT_INT_EQ(clients[2].w, 500);
+
+    selmon = NULL;
+}
+
+/*
+ * Full layout:
+ *
+ * ┌──────────┬──────────┬──────────┐
+ * │    A     │    B     │    C     │
+ * │   33%    │   33%    │   33%    │
+ * └──────────┴──────────┴──────────┘
+ *
+ * All clients are already visible:
+ *
+ * ┌─────────────────────────────────┐
+ * │    A     │    B     │   *C*     │
+ * └─────────────────────────────────┘
+ *
+ * Left -> B
+ *
+ * B is already completely visible, so the viewport should not move.
+ */
+Test(scroll_navigation, moving_left_does_not_scroll_when_client_is_visible)
+{
+    Monitor monitor = {
+        .wx = 0,
+        .wy = 0,
+        .ww = 1000,
+        .wh = 600,
+        .anchor = 0,
+    };
+
+    Client clients[3] = {
+        {.scrollw = 33},
+        {.scrollw = 33},
+        {.scrollw = 33},
+    };
+
+    link_clients(&monitor, clients, 3);
+
+    monitor.sel = &clients[2];
+    selmon = &monitor;
+
+    scroll_left();
+
+    cr_assert_eq(monitor.sel, &clients[1]);
+    ASSERT_INT_EQ(monitor.anchor, 0);
+
+    selmon = NULL;
+}
+
+/*
+ * Full layout:
+ *
+ * ┌──────────┬──────────────────────────┬──────────┐
+ * │    A     │            B             │    C     │
+ * │   30%    │           130%           │   50%    │
+ * └──────────┴──────────────────────────┴──────────┘
+ *
+ * B begins at 30%.
+ *
+ * Initial viewport:
+ *
+ *                          ┌────────────────────────┐
+ *                          │ tail B │      *C*       │
+ *                          └────────────────────────┘
+ *                          ^
+ *                      anchor = 120
+ *
+ * Moving C -> B should place B's left edge at the left side
+ * of the viewport:
+ *
+ *     anchor = 30
+ *
+ * This verifies that scroll-left movement uses the actual
+ * cumulative widths of clients preceding B.
+ */
+Test(scroll_navigation, left_uses_actual_client_widths)
+{
+    Monitor monitor = {
+        .wx = 0,
+        .wy = 0,
+        .ww = 1000,
+        .wh = 600,
+        .anchor = 120,
+    };
+
+    Client clients[3] = {
+        {.scrollw = 30},
+        {.scrollw = 130},
+        {.scrollw = 50},
+    };
+
+    link_clients(&monitor, clients, 3);
+
+    monitor.sel = &clients[2];
+    selmon = &monitor;
+
+    scroll_left();
+
+    cr_assert_eq(monitor.sel, &clients[1]);
+    ASSERT_INT_EQ(monitor.anchor, 30);
+
+    selmon = NULL;
+}
+
+/*
+ * Moving left from the first tiled client should do nothing.
+ */
+Test(scroll_navigation, moving_left_from_first_client_does_nothing)
+{
+    Monitor monitor = {
+        .wx = 0,
+        .wy = 0,
+        .ww = 1000,
+        .wh = 600,
+        .anchor = 0,
+    };
+
+    Client clients[2] = {
+        {.scrollw = 50},
+        {.scrollw = 50},
+    };
+
+    link_clients(&monitor, clients, 2);
+
+    monitor.sel = &clients[0];
+    selmon = &monitor;
+
+    scroll_left();
+
+    cr_assert_eq(monitor.sel, &clients[0]);
+    ASSERT_INT_EQ(monitor.anchor, 0);
 
     selmon = NULL;
 }

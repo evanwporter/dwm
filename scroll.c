@@ -1,6 +1,18 @@
 #include "config.h"
 #include "dwm.h"
 
+Client *
+prevtiled(const Monitor *m, const Client *c)
+{
+    Client *i = nexttiled(m->clients);
+    Client *prev = NULL;
+
+	for (; i && i != c; i = nexttiled(i->next))
+        prev = i;
+
+	return prev;
+}
+
 int
 in_scroll(void)
 {
@@ -69,6 +81,7 @@ scroll_right(void)
         new_start += c->scrollw;
     }
 
+    /// The right edge of the window we want want to focus
     const int new_end = new_start + focus->scrollw;
 
     if (new_end - 100 <= selmon->anchor) {
@@ -82,6 +95,39 @@ scroll_right(void)
     }
 
     focusstackvis(&(Arg){ .i = +1 });
+}
+
+void
+scroll_left(void)
+{
+    /// The window we want to move the focus too
+    Client *focus = prevtiled(selmon, selmon->sel);
+
+    /// If its null we don't do anything
+    if (!focus) return;
+   
+    /// Relatively where on the screen the left edge of window
+    /// we want to focus too
+    int new_start = 0;
+
+    /// Collect the total width
+    Client *c = nexttiled(selmon->clients);
+    for (; c; c = nexttiled(c->next)) {
+        if (c == focus) {
+            break;
+        }
+
+        new_start += c->scrollw;
+    }
+
+    if (new_start <= selmon->anchor) {
+        // If the new start is before the anchor then we need to adjust the window
+        selmon->anchor = new_start;
+    } else {
+        // Otherwise its fully visible and in view
+    }
+
+    focusstackvis(&(Arg){ .i = -1 });
 }
 
 void
