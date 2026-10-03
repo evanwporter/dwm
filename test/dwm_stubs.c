@@ -40,6 +40,14 @@ restack(Monitor *m)
 }
 
 void
+setwindowattr(Client *c, const char *name, const unsigned long value)
+{
+    (void)c;
+    (void)name;
+    (void)value;
+}
+
+void
 arrange(Monitor *m)
 {
     (void)m;

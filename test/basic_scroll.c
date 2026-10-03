@@ -627,3 +627,99 @@ Test(scroll_navigation, moving_left_from_first_client_does_nothing)
 
     selmon = NULL;
 }
+
+/*
+ * Before:
+ *
+ * viewport
+ * ┌─────────────────────────────────┐
+ * │       A       │      *B*        │
+ * │      50%      │      50%        │
+ * └─────────────────────────────────┘
+ *
+ * Increasing B to 55% pushes its right edge to 105%.
+ *
+ * The viewport should move right by exactly 5%.
+ */
+Test(scroll_resize, increase_moves_anchor_right_to_keep_client_visible)
+{
+    Monitor monitor = {
+        .wx = 0,
+        .wy = 0,
+        .ww = 1000,
+        .wh = 600,
+        .anchor = 0,
+    };
+
+    Client clients[2] = {
+        {.scrollw = 50},
+        {.scrollw = 50},
+    };
+
+    link_clients(&monitor, clients, 2);
+
+    monitor.sel = &clients[1];
+    selmon = &monitor;
+
+    scroll_increase_width(NULL);
+
+    ASSERT_INT_EQ(clients[1].scrollw, 55);
+    ASSERT_INT_EQ(monitor.anchor, 5);
+
+    selmon = NULL;
+}
+
+/*
+ * Before:
+ *
+ * Full layout ends at 150%.
+ *
+ *              viewport
+ *              ┌───────────────────────────────┐
+ * ┌────────────┼───────────────────────────────┤
+ * │     A      │             *B*               │
+ * │    70%     │             80%               │
+ * └────────────┴───────────────────────────────┘
+ *              ^
+ *          anchor = 50
+ *
+ * viewport = [50, 150]
+ *
+ * Decreasing B from 80% -> 75% makes the layout end at 145%.
+ *
+ * Keeping anchor = 50 would display [50, 150], leaving a 5%
+ * empty gap on the right.
+ *
+ * Therefore anchor should move left to 45 so that:
+ *
+ *     viewport = [45, 145]
+ *
+ * and the right edge remains filled.
+ */
+Test(scroll_resize, decrease_moves_anchor_left_to_avoid_right_gap)
+{
+    Monitor monitor = {
+        .wx = 0,
+        .wy = 0,
+        .ww = 1000,
+        .wh = 600,
+        .anchor = 50,
+    };
+
+    Client clients[2] = {
+        {.scrollw = 70},
+        {.scrollw = 80},
+    };
+
+    link_clients(&monitor, clients, 2);
+
+    monitor.sel = &clients[1];
+    selmon = &monitor;
+
+    scroll_decrease_width(NULL);
+
+    ASSERT_INT_EQ(clients[1].scrollw, 75);
+    ASSERT_INT_EQ(monitor.anchor, 45);
+
+    selmon = NULL;
+}

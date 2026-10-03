@@ -527,6 +527,7 @@ void setlayout(const Arg *arg);
 void setmfact(const Arg *arg);
 void setup(void);
 void seturgent(Client *c, int urg);
+void setwindowattr(Client *c, const char *name, const unsigned long value);
 void show(const Arg *arg);
 void showall(const Arg *arg);
 void showwin(Client *c);

@@ -37,10 +37,12 @@ scroll(Monitor *m)
         int n = 0;
         int focused_num = 0;
         Client *c = nexttiled(m->clients);
+
         for (; c; c = nexttiled(c->next), n++) {
             if (c == m->sel)
                 focused_num = n;
         }
+
         m->anchor = (focused_num - 1) * 33;
     }
 
@@ -52,8 +54,10 @@ scroll(Monitor *m)
     for (; c; c = nexttiled(c->next)) {
         const int width = (c->scrollw * m->ww) / 100;
 
+        setwindowattr(c, "_PICOM_ANIMATE", 1);
+
         resize(c, x, m->wy, width, m->wh, borderpx, 0);
-        
+
         x += width;
     }
 }
@@ -159,9 +163,34 @@ scroll_increase_width(const Arg *arg)
         new_start += c->scrollw;
     }
 
-    if (selmon->sel->scrollw + new_start - selmon->anchor > 100) {
+    if (selmon->sel->scrollw + new_start - selmon->anchor > 100)
         selmon->anchor += 5;
-    }
+
+    scroll(selmon);
+}
+
+void
+scroll_decrease_width(const Arg *arg)
+{
+    (void)arg;
+
+    selmon->sel->scrollw -= 5;
+
+    int total_width = 0;
+
+    Client *c = nexttiled(selmon->clients);
+    for (; c; c = nexttiled(c->next))
+        total_width += c->scrollw;
+
+    /*
+     * Normally shrinking should not move the viewport.
+     *
+     * But if shrinking creates empty space on the right side,
+     * move the viewport left just enough to keep the content
+     * flush with the right edge.
+     */
+    if (total_width < selmon->anchor + 100)
+        selmon->anchor = MAX(0, total_width - 100);
 
     scroll(selmon);
 }

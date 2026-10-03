@@ -3103,6 +3103,27 @@ spawn(const Arg *arg)
 	}
 }
 
+/// Set the X11 window attribute for matching rules in Picom
+void
+setwindowattr(Client *c, const char *name, const unsigned long value)
+{
+    if (!dpy)
+        return;
+
+    const Atom atom = XInternAtom(dpy, name, False);
+
+    XChangeProperty(
+        dpy,
+        c->win,
+        atom,
+        XA_CARDINAL,
+        32,
+        PropModeReplace,
+        (const unsigned char *)&value,
+        1
+    );
+}
+
 // Send the client to a different workspace
 void
 sendtoworkspace(const Arg *arg)
