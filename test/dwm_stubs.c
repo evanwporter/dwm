@@ -220,14 +220,8 @@ key_shift_move(const Arg *arg)
 
 
 /* -------------------------------------------------------------------------- */
-/* Scratchpads / visibility                                                   */
+/* Visibility                                                                 */
 /* -------------------------------------------------------------------------- */
-
-void
-togglescratch(const Arg *arg)
-{
-    (void)arg;
-}
 
 void
 showall(const Arg *arg)

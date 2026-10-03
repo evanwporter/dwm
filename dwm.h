@@ -61,8 +61,8 @@
 /* The actual height of a client window includes the border and this macro helps calculate that. */
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
 
-// The total number of workspaces + scrathpads
-#define NUMTAGS                 (LENGTH(workspace_names) + LENGTH(scratchpads))
+/* One workspace state record per configured workspace. */
+#define NUMTAGS                 LENGTH(workspace_names)
 
 /* Converts a workspace number (1-9) to its corresponding bit position in a bitmask.
  *
@@ -85,9 +85,6 @@
 /* Converts a non-empty workspace bitmask back to its first workspace number.
  * Clients belong to one workspace, while a monitor's selection is a bitmask. */
 #define WORKSPACEFROMMASK(M)    (__builtin_ctz(M) + 1U)
-
-#define SPTAG(i)                (LENGTH(workspace_names) + (i) + 1)
-#define IS_SP_WORKSPACE(W)      ((W) > LENGTH(workspace_names) && (W) <= NUMTAGS)
 
 // Returns first workspace belonging to the monitor M. `__builtin_ctz` counts from 
 // the least significant bit (the rightmost bit) up to the first set bit (the first 1).
@@ -162,9 +159,9 @@ typedef union {
 } Arg;
 
 typedef struct {
-	const char *name;
-	const void *cmd;
-} Sp;
+	/* Command launched the first time this workspace is viewed; NULL disables it. */
+	const char *const *cmd;
+} WorkspaceConfig;
 
 typedef struct {
 	unsigned int click;
@@ -209,9 +206,6 @@ struct Client {
 
     /// The workspace the client is attached too
     unsigned int workspace;
-
-    /// Non-zero scratchpad identifier; retained while a floating pad moves workspaces.
-    unsigned int scratchpad;
 
 	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen, isterminal, noswallow;
 	pid_t pid;
@@ -539,7 +533,6 @@ void tile(Monitor *m);
 void tree(Monitor *m);
 void togglebar(const Arg *arg);
 void togglefloating(const Arg *arg);
-void togglescratch(const Arg *arg);
 void togglewin(const Arg *arg);
 void unfocus(Client *c, int setfocus);
 void unmanage(Client *c, int destroyed);

@@ -55,15 +55,12 @@ static const char *colors[][3] = {
 	[SchemeHid]    = { selbgcolor, normbgcolor, selbgcolor },
 };
 
-/* scratchpads */
-static const char *spcmd1[] = {"spotify", NULL };
-static Sp scratchpads[] = {
-	/* name          cmd  */
-	{"sp_spotify",      spcmd1},
+/* A workspace's name is displayed in the bar; its command launches on first visit. */
+static const char *workspace_names[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "" };
+static const char *const spotifycmd[] = { "spotify", NULL };
+static const WorkspaceConfig workspace_configs[] = {
+    [9] = { .cmd = spotifycmd },
 };
-
-/* tagging */
-static const char *workspace_names[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
 static const Rule rules[] = {
 	/* xprop(1):
@@ -76,9 +73,7 @@ static const Rule rules[] = {
     { .class = "st-256color", .isterminal = 1, .icon = "" },
     { .class = "codium", .icon = "" },
     { .class = "eww", .isfloating = 1 },
-    // TODO: setting workspace to SPTAG(0) makes spotify always launch in the scratchpad
-    // regardless of where I launch. This behavior may not be ideal.
-    { .instance = "spotify", .workspace = SPTAG(0), .icon = "" },
+    { .instance = "spotify", .workspace = 10, .icon = "" },
     { .title = "Event Tester", .noswallow = 1 }, /* xev */
 };
 
@@ -194,9 +189,6 @@ static const Key keys[] = {
     { 0,                            XF86XK_MonBrightnessDown,   spawn,          SHCMD("brightnessctl set 5%-; pkill -RTMIN+2 dwmblocks") },
     // Screenshot
     { 0,                            XK_Print,                   spawn,          {.v = flameshot} },
-	// Scratchpads
-	{ MODKEY,                       XK_s,                       togglescratch,  {.ui = 0 } },
-
 	TAGKEYS(                        XK_1,                      0)
 	TAGKEYS(                        XK_2,                      1)
 	TAGKEYS(                        XK_3,                      2)
@@ -206,6 +198,7 @@ static const Key keys[] = {
 	TAGKEYS(                        XK_7,                      6)
 	TAGKEYS(                        XK_8,                      7)
 	TAGKEYS(                        XK_9,                      8)
+    TAGKEYS(                        XK_s,                      9)
 	{ MODKEY|ShiftMask,             XK_e,      quit,           {0} },
 	{ MODKEY|ShiftMask,             XK_c,      quit,           {.i = 1} },
 };

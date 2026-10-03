@@ -98,6 +98,18 @@ Monitor *mons, *selmon;
 Window root, wmcheckwin;
 xcb_connection_t *xcon;
 Workspace *workspaces[NUMTAGS];
+static int workspace_launched[NUMTAGS];
+
+static void
+launchworkspace(unsigned int workspace)
+{
+	const WorkspaceConfig *config = &workspace_configs[workspace - 1];
+
+	if (!workspace_launched[workspace - 1] && config->cmd) {
+		workspace_launched[workspace - 1] = 1;
+		spawn(&(Arg){.v = config->cmd});
+	}
+}
 
 // ┌──────────┬──────┬─────────────────────────────────────────┬──────────────┬────────┐
 // │ 1 2 3    │[]=]  │  vim │  firefox │  terminal             │ 10:30 AM     │ WIFI   │
@@ -179,7 +191,6 @@ applyrules(Client *c)
 	c->isfloating = 0;
     c->workspace = 0;
     c->icon = NULL;
-    c->scratchpad = 0;
 
 	/* This reads the class hint for the client's window. As in this property of
 	 * the window:
@@ -216,16 +227,8 @@ applyrules(Client *c)
 
 			// Sets the workspace
 			c->workspace = r->workspace;
-			if (IS_SP_WORKSPACE(r->workspace))
-				c->scratchpad = r->workspace - LENGTH(workspace_names);
 
 			c->icon = r->icon;
-
-			/* If this is a scratchpad and it's floating, center it */
-			if (IS_SP_WORKSPACE(r->workspace) && r->isfloating) {
-				c->x = c->mon->wx + (c->mon->ww / 2 - WIDTH(c) / 2);
-				c->y = c->mon->wy + (c->mon->wh / 2 - HEIGHT(c) / 2);
-			}
 
 			/* This loops through all monitors trying to find one that matches the monitor
 			 * rule value. If the rule value is -1 then we simply exhaust the list and m
@@ -249,11 +252,6 @@ applyrules(Client *c)
 		XFree(ch.res_class);
 	if (ch.res_name)
 		XFree(ch.res_name);
-
-	/* Floating scratchpads live on the current workspace while their scratchpad identifier
-	 * remains in c->scratchpad. Tiled scratchpads retain their dedicated workspace. */
-	if (c->scratchpad && c->isfloating)
-		c->workspace = WORKSPACEFROMMASK(c->mon->selected_workspaces[c->mon->sel_ws]);
 
 	/* A client without a valid explicit workspace opens on the active workspace. */
     c->workspace = c->workspace && CHECK_WS_BOUNDS(c->workspace)
@@ -1249,28 +1247,6 @@ drawbar(Monitor *m)
 		x += w;
 	}
 
-    /* Find each scratchpad client. Unlabelled pads stay out of the strip. */
-    Client *scratchpad_occupied[LENGTH(scratchpads)] = {NULL};
-
-    for (c = m->clients; c; c = c->next) {
-        for (unsigned int i = 0; i < LENGTH(scratchpads); i++)
-        if (c->scratchpad == i + 1) {
-          scratchpad_occupied[i] = c;
-          break;
-        }
-    }
-
-	for (i = 0; i < LENGTH(scratchpads); i++) {
-		c = scratchpad_occupied[i];
-		if (!c || !c->icon || !*c->icon)
-			continue;
-
-		w = TEXTW(c->icon);
-		drw_setscheme(drw, scheme[ISVISIBLE(c) ? SchemeSel : SchemeNorm]);
-		drw_text(drw, x, 0, w, bh, lrpad / 2, c->icon, c->isurgent);
-		x += w;
-	}
-
     // The width of the layout symbol.
 	w = TEXTW(PERWS(m)->ltsymbol);
 
@@ -1810,13 +1786,6 @@ manage(Window w, XWindowAttributes *wa)
 		applyrules(c);
 
 		term = termforwin(c);
-	}
-
-	/* Tiled scratchpads are dedicated workspaces. Switch to that workspace as the
-	 * window appears; floating pads stay on the workspace active at launch. */
-	if (c->scratchpad && !c->isfloating) {
-		c->mon->sel_ws ^= 1;
-		c->mon->selected_workspaces[c->mon->sel_ws] = c->workspace;
 	}
 
 	if (c->x + WIDTH(c) > c->mon->wx + c->mon->ww)
@@ -3005,12 +2974,6 @@ showhide(Client *c)
 		return;
 
 	if (ISVISIBLE(c)) {
-		/* Center scratchpads when showing them */
-		if (c->scratchpad && c->isfloating) {
-			c->x = c->mon->wx + (c->mon->ww / 2 - WIDTH(c) / 2);
-			c->y = c->mon->wy + (c->mon->wh / 2 - HEIGHT(c) / 2);
-		}
-
 		/* show clients top down */
 		XMoveWindow(dpy, c->win, c->x, c->y);
 
@@ -3270,51 +3233,6 @@ togglefloating(const Arg *arg)
 			selmon->sel->h - 2 * (borderpx - selmon->sel->bw),
 			borderpx, 0);
 	arrange(selmon);
-}
-
-void
-togglescratch(const Arg *arg)
-{
-    Client *c;
-    unsigned int scratchworkspace = SPTAG(arg->ui);
-    Arg sparg = {.v = scratchpads[arg->ui].cmd};
-
-    /* Search by persistent identity: floating pads change workspaces when shown. */
-    for (c = selmon->clients; c && c->scratchpad != arg->ui + 1; c = c->next);
-
-    if (c) {
-		if (c->isfloating) {
-			if (ISVISIBLE(c))
-				c->workspace = scratchworkspace;
-			else {
-				c->workspace = WORKSPACEFROMMASK(selmon->selected_workspaces[selmon->sel_ws]);
-				c->x = c->mon->wx + (c->mon->ww / 2 - WIDTH(c) / 2);
-				c->y = c->mon->wy + (c->mon->wh / 2 - HEIGHT(c) / 2);
-			}
-			focus(ISVISIBLE(c) ? c : NULL);
-			arrange(selmon);
-			if (ISVISIBLE(c))
-				restack(selmon);
-			return;
-		}
-
-        /* If found, toggle its visibility by switching workspaces */
-        if (ISVISIBLE(c)) {
-            /* Currently visible - switch away to hide it */
-            /* Restore previous workspace */
-            selmon->sel_ws ^= 1;
-            focus(NULL);
-            arrange(selmon);
-        } else {
-            /* Not visible - switch to scratchpad workspace to show it */
-            viewworkspace(&(Arg){.ui = scratchworkspace});
-            focus(c);
-            restack(selmon);
-        }
-    } else {
-        /* applyrules selects the dedicated workspace for tiled pads. */
-        spawn(&sparg);
-    }
 }
 
 void
@@ -3917,6 +3835,8 @@ viewworkspace(const Arg *arg)
 	 */
 	if (arg->ui)
 		selmon->selected_workspaces[selmon->sel_ws] = WORKSPACEBIT(arg->ui);
+
+	launchworkspace(arg->ui);
 
 	/* Focus on the first visible client in the stack as the view has changed */
 	focus(NULL);
