@@ -29,6 +29,7 @@
 								libxcb
 								libxft
 								libxinerama
+								yajl
 							];
 
 							installFlags = ["PREFIX=$(out)"];

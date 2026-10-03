@@ -3,56 +3,47 @@
 
 include config.mk
 
-SRC = drw.c dwm.c keymaps.c deck.c conveyor.c
+SRC = drw.c dwm.c util.c
 OBJ = ${SRC:.c=.o}
 
-UTIL_SRC = util.c tree.c
-UTIL_OBJ = ${UTIL_SRC:.c=.o}
+all: dwm dwm-msg
 
-TEST_SRC = test/move_node.c test/dwm_stubs.c test/navigate_tree.c test/auto_add.c test/basic_tree.c test/proportion.c test/duped_keys.c
-TEST_OBJ = ${TEST_SRC:.c=.o}
+.c.o:
+	${CC} -c ${CFLAGS} $<
 
-DEP = ${OBJ:.o=.d} ${UTIL_OBJ:.o=.d} ${TEST_OBJ:.o=.d}
+${OBJ}: config.h config.mk
 
-CRITERION_CFLAGS = $(shell pkg-config --cflags criterion)
-CRITERION_LIBS = $(shell pkg-config --libs criterion)
+config.h:
+	cp config.def.h $@
 
-${TEST_OBJ}: CFLAGS += ${CRITERION_CFLAGS}
+dwm: ${OBJ}
+	${CC} -o $@ ${OBJ} ${LDFLAGS}
 
-all: dwm
-
-compile_commands:
-	bear --output compile_commands.json -- make clean all
-
-# Creates a rule for building .o files from .c files
-%.o: %.c
-	${CC} -c ${CFLAGS} -o $@ $<
-
-# Tells make that every OBJ file depends on config.h and config.mk, 
-# so if either of those files change, the .o files will be rebuilt
-${OBJ}: config.h config.mk palette.h
-
-config.h: config.def.h 
-	cp $< $@
+dwm-msg: dwm-msg.o
+	${CC} -o $@ $< ${LDFLAGS}
 
 clean:
-	rm -f dwm ${OBJ}
-	rm -f tests ${TEST_OBJ} ${UTIL_OBJ}
+	rm -f dwm dwm-msg ${OBJ} dwm-${VERSION}.tar.gz
 
-tests: ${TEST_OBJ} ${UTIL_OBJ}
-	${CC} -o $@ $^ ${LDFLAGS} ${CRITERION_LIBS}
-
-dwm: ${OBJ} ${UTIL_OBJ}
-	${CC} -o $@ $^ ${LDFLAGS}
+dist: clean
+	mkdir -p dwm-${VERSION}
+	cp -R LICENSE Makefile README config.def.h config.mk\
+		dwm.1 drw.h util.h ${SRC} dwm.png transient.c dwm-${VERSION}
+	tar -cf dwm-${VERSION}.tar dwm-${VERSION}
+	gzip dwm-${VERSION}.tar
+	rm -rf dwm-${VERSION}
 
 install: all
 	mkdir -p ${DESTDIR}${PREFIX}/bin
-	cp -f dwm ${DESTDIR}${PREFIX}/bin
+	cp -f dwm dwm-msg ${DESTDIR}${PREFIX}/bin
 	chmod 755 ${DESTDIR}${PREFIX}/bin/dwm
+	chmod 755 ${DESTDIR}${PREFIX}/bin/dwm-msg
 	mkdir -p ${DESTDIR}${MANPREFIX}/man1
 	sed "s/VERSION/${VERSION}/g" < dwm.1 > ${DESTDIR}${MANPREFIX}/man1/dwm.1
 	chmod 644 ${DESTDIR}${MANPREFIX}/man1/dwm.1
 
--include ${DEP}
+uninstall:
+	rm -f ${DESTDIR}${PREFIX}/bin/dwm\
+		${DESTDIR}${MANPREFIX}/man1/dwm.1
 
-.PHONY: all clean compile_commands
+.PHONY: all clean dist install uninstall

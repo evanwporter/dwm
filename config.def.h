@@ -1,194 +1,115 @@
 /* See LICENSE file for copyright and license details. */
 
-#ifndef CONFIG_H
-#define CONFIG_H
-
-#include "deck.h"
-#include "dwm.h"
-#include "conveyor.h"
-#include "palette.h"
-#include "tree.h"
-
-#include <X11/X.h>
-#include <X11/Xutil.h>
-
 /* appearance */
-static const unsigned int borderpx       = 3;   /* border pixel of windows */
-static const unsigned int snap           = 32;  /* snap pixel */
-static const int swallowfloating         = 0;   /* 1 means swallow floating windows by default */
-static const unsigned int systraypinning = 0;   /* 0: sloppy systray follows selected monitor, >0: pin systray to monitor X */
-static const unsigned int systrayonleft  = 0;   /* 0: systray in the right corner, >0: systray on left of status text */
-static const unsigned int systrayspacing = 2;   /* systray spacing */
-static const int systraypinningfailfirst = 1;   /* 1: if pinning fails, display systray on the first monitor, 0: display systray on the last monitor */
-static const int showsystray             = 1;   /* 0 means no systray */
-static const int showbar                 = 1;   /* 0 means no bar */
-static const int topbar                  = 0;   /* 0 means bottom bar */
-
-static const int horizpadbar             = 2;   /* horizontal padding for statusbar */
-static const int vertpadbar              = 0;   /* vertical padding for statusbar */
-
-static const int iconspacing             = 15;  /* space between an app icon and its title */
-
-static const char *fonts[]               = { 
-    "JetBrainsMonoNL NFP:size=13:style=Bold", 
-    "Font Awesome 6 Free Solid:size=13"
-};
-static const char dmenufont[]            = "JetBrainsMonoNL NFP:size=20:style=Bold";
-
-static char normfgcolor[]                = DWM_NORM_FG;
-static char normbgcolor[]                = DWM_NORM_BG;
-static char normbordercolor[]            = DWM_NORM_BORDER;
-
-static char selfgcolor[]                 = DWM_SEL_FG;
-static char selbgcolor[]                 = DWM_SEL_BG;
-static char selbordercolor[]             = DWM_SEL_BORDER;
-
-static char statusfgcolor[]              = DWM_STATUS_FG;
-static char statusbgcolor[]              = DWM_STATUS_BG;
-static char statusbordercolor[]          = DWM_STATUS_BORDER;
-
-static const char *colors[][3] = {
-	/*               fg               bg             border */
-	[SchemeNorm] = { normfgcolor, normbgcolor, normbordercolor },
-	[SchemeSel]  = { selfgcolor,  selbgcolor,  selbordercolor  },
-	[SchemeStatus] = { statusfgcolor, statusbgcolor, statusbordercolor },
-	[SchemeHid]    = { selbgcolor, normbgcolor, selbgcolor },
+static const unsigned int borderpx  = 1;        /* border pixel of windows */
+static const unsigned int gappx     = 18;       /* gap pixel between windows */
+static const unsigned int snap      = 32;       /* snap pixel */
+static const int showbar            = 1;        /* 0 means no bar */
+static const int topbar             = 1;        /* 0 means bottom bar */
+static const int usealtbar          = 1;        /* 1 means use non-dwm status bar */
+static const char *altbarclass      = "Polybar"; /* Alternate bar class name */
+static const char *altbarcmd        = "$HOME/bar.sh"; /* Alternate bar launch command */
+static const int vertpad            = 20;       /* vertical padding of bar */
+static const int sidepad            = 0;       /* horizontal padding of bar */
+static const int user_bh            = 25;        /* 0 means that dwm will calculate bar height, >= 1 means dwm will user_bh as bar height */
+static const char *fonts[]          = { "Monofur Nerd Font Mono:style=Bold:size=21" };
+static const char dmenufont[]       = "Monofur Nerd Font Mono:style=Bold:size=15";
+static const char col_gray1[]       = "#9064e3";
+static const char col_gray2[]       = "#c2a6f7";
+static const char col_gray3[]       = "#c2a6f7";
+static const char col_gray4[]       = "#9064e3";
+static const char col_cyan[]        = "#9daafa";
+static const unsigned int baralpha = 0xd0;
+static const unsigned int borderalpha = OPAQUE;
+static const char *colors[][3]      = {
+	/*               fg         bg         border   */
+	[SchemeNorm] = { col_gray3, col_gray1, col_gray1 },
+	[SchemeSel]  = { col_gray4, col_gray2,  col_cyan  },
 };
 
-/* A workspace's name is displayed in the bar; its command launches on first visit. */
-static const char *workspace_names[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "" };
-static const char *const spotifycmd[] = { "spotify", NULL };
-static const WorkspaceConfig workspace_configs[] = {
-    [9] = { .cmd = spotifycmd },
+static const unsigned int alphas[][3]      = {
+    /*               fg      bg        border*/
+    [SchemeNorm] = { OPAQUE, baralpha, borderalpha },
+	[SchemeSel]  = { OPAQUE, baralpha, borderalpha },
 };
+
+static const char *const autostart[] = {
+	"slstatus", NULL,
+	NULL /* terminate */
+};
+
+/* tagging */
+static const char *tags[] = { "", "", "", "󰣇", "", "" };
 
 static const Rule rules[] = {
 	/* xprop(1):
 	 *	WM_CLASS(STRING) = instance, class
 	 *	WM_NAME(STRING) = title
 	 */
-	{ .class = "Gimp", .isfloating = 1, .icon = "" },
-	{ .class = "firefox", .icon = "󰈹"  },
-	{ .class = "kitty", .isterminal = 1, .icon = "󰄛"  },
-    { .class = "st-256color", .isterminal = 1, .icon = "" },
-    { .class = "codium", .icon = "" },
-    { .class = "eww", .isfloating = 1 },
-    { .instance = "spotify", .workspace = 10, .icon = "" },
-    { .title = "Event Tester", .noswallow = 1 }, /* xev */
+	/* class      instance    title       tags mask     isfloating   monitor */
+	{ "Gimp",     NULL,       NULL,       0,            1,           -1 },
+	{ "Firefox",  NULL,       NULL,       1 << 8,       0,           -1 },
 };
 
 /* layout(s) */
-static const float mfact     = 0.50; /* factor of master area size [0.05..0.95] */
+static const float mfact     = 0.55; /* factor of master area size [0.05..0.95] */
 static const int nmaster     = 1;    /* number of clients in master area */
 static const int resizehints = 0;    /* 1 means respect size hints in tiled resizals */
-static const int decorhints  = 1;    /* 1 means respect client decoration hints */
+static const int attachbelow = 1;    /* 1 means attach after the currently active window */
 static const int lockfullscreen = 1; /* 1 will force focus on the fullscreen window */
-static const int refreshrate = 120;  /* refresh rate (per second) for client move/resize */
 
 static const Layout layouts[] = {
 	/* symbol     arrange function */
-	{ "[M]",      monocle },
-	{ "[]=",      tile },    /* first entry is default */
-	{ "><>",      NULL },    /* no layout function means floating behavior */
-    { "[T]",      tree },
-    { "[D]",      deck },
-    { "[C]",      conveyor }
+	{ "󱞟",      tile },    /* first entry is default */
+	{ "",      NULL },    /* no layout function means floating behavior */
+	{ "",      monocle },
 };
 
 /* key definitions */
-#define MODKEY Mod4Mask
+#define MODKEY Mod1Mask
 #define TAGKEYS(KEY,TAG) \
-	{ MODKEY,               KEY,      viewworkspace,       {.ui = TAG + 1} }, \
-	{ MODKEY|ShiftMask,     KEY,      movetoworkspace,     {.ui = TAG + 1} }, \
-    { MODKEY|ControlMask,   KEY,      toggleviewworkspace, {.ui = TAG + 1} },
+	{ MODKEY,                       KEY,      view,           {.ui = 1 << TAG} }, \
+	{ MODKEY|ControlMask,           KEY,      toggleview,     {.ui = 1 << TAG} }, \
+	{ MODKEY|ShiftMask,             KEY,      tag,            {.ui = 1 << TAG} }, \
+	{ MODKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG} },
 
 /* helper for spawning shell commands in the pre dwm-5.0 fashion */
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
 
-#define STATUSBAR "dwmblocks"
-
 /* commands */
 static char dmenumon[2] = "0"; /* component of dmenucmd, manipulated in spawn() */
-
-// TODO: think about baking in the color commands into `dmenu_desktop_run`
-static const char *dmenucmd[] = {
-    "dmenu_desktop_run",
-    "-i",
-    "-m", dmenumon, 
-    "-fn", dmenufont, 
-    "-nb", normbgcolor,
-    "-nf", normfgcolor,
-    "-sb", selbgcolor,
-    "-sf", selfgcolor,
-    NULL
-};
-
-// static const char *termcmd[]  = { "/bin/sh", "-c", "exec \"$TERMINAL\"", NULL };
+static const char *dmenucmd[] = { "dmenu_run", "-m", dmenumon, "-fn", dmenufont, "-nb", col_gray1, "-nf", col_gray3, "-sb", col_cyan, "-sf", col_gray4, NULL };
 static const char *termcmd[]  = { "st", NULL };
-static const char *flameshot[] = {
-  "flameshot", "gui", NULL
-};
-static const char *powermenu[] = { "powermenu", NULL };
 
+#include "movestack.c"
 static const Key keys[] = {
 	/* modifier                     key        function        argument */
-	{ MODKEY,                       XK_space,  spawn,          {.v = dmenucmd } },
-	{ MODKEY,                       XK_Return, spawn,          {.v = termcmd } },
-    { MODKEY,                       XK_p,      spawn,          {.v = powermenu }},
+	{ MODKEY,                       XK_p,      spawn,          {.v = dmenucmd } },
+	{ MODKEY|ShiftMask,             XK_Return, spawn,          {.v = termcmd } },
 	{ MODKEY,                       XK_b,      togglebar,      {0} },
-	{ MODKEY,                       XK_h,      key_move, {.i = 0 } },
-	{ MODKEY,                       XK_j,      key_move, {.i = 1 } },
-	{ MODKEY,                       XK_k,      key_move, {.i = 2 } },
-	{ MODKEY,                       XK_l,      key_move, {.i = 3 } },
-	{ MODKEY|ShiftMask,             XK_h,      key_shift_move,  {.i = 0 } },
-	{ MODKEY|ShiftMask,             XK_j,      key_shift_move,  {.i = 1 } },
-	{ MODKEY|ShiftMask,             XK_k,      key_shift_move,  {.i = 2 } },
-	{ MODKEY|ShiftMask,             XK_l,      key_shift_move,  {.i = 3 } },
-    { MODKEY|ShiftMask,             XK_Left,   treenode_move_node, {.i = 0} },
-    { MODKEY|ShiftMask,             XK_Down,   treenode_move_node, {.i = 1} },
-    { MODKEY|ShiftMask,             XK_Up,     treenode_move_node, {.i = 2} },
-    { MODKEY|ShiftMask,             XK_Right,  treenode_move_node, {.i = 3} },
-    { MODKEY,                       XK_Left,   tree_change_proportion, {.i = 0}},
-    { MODKEY,                       XK_Down,   tree_change_proportion, {.i = 1}},
-    { MODKEY,                       XK_Up,     tree_change_proportion, {.i = 2}},
-	{ MODKEY,                       XK_Right,  tree_change_proportion, {.i = 3}},
+	{ MODKEY,                       XK_j,      focusstack,     {.i = +1 } },
+	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 } },
 	{ MODKEY,                       XK_i,      incnmaster,     {.i = +1 } },
 	{ MODKEY,                       XK_d,      incnmaster,     {.i = -1 } },
-	{ MODKEY|ShiftMask,             XK_Return, zoom,           {0} },
+	{ MODKEY,                       XK_h,      setmfact,       {.f = -0.05} },
+	{ MODKEY,                       XK_l,      setmfact,       {.f = +0.05} },
+	{ MODKEY|ShiftMask,             XK_j,      movestack,      {.i = +1 } },
+	{ MODKEY|ShiftMask,             XK_k,      movestack,      {.i = -1 } },
+	{ MODKEY,                       XK_Return, zoom,           {0} },
 	{ MODKEY,                       XK_Tab,    view,           {0} },
-	{ MODKEY,                       XK_q,      killclient,     {0} },
-	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[0]} },
-	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[1]} },
-	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[2]} },
-    { MODKEY,                       XK_r,      setlayout,      {.v = &layouts[3]} },
-    { MODKEY|ShiftMask,             XK_d,      setlayout,      {.v = &layouts[4]} },
-    { MODKEY,                       XK_c,      setlayout,      {.v = &layouts[5]} },
+	{ MODKEY|ShiftMask,             XK_c,      killclient,     {0} },
+	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[0]} },
+	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[1]} },
+	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[2]} },
+	{ MODKEY,                       XK_space,  setlayout,      {0} },
 	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
-    // TODO: Use workspace instead
-	// { MODKEY|ShiftMask,             XK_0,      tag,            {.ui = ~0 } },
+	{ MODKEY|ShiftMask,             XK_0,      tag,            {.ui = ~0 } },
 	{ MODKEY,                       XK_comma,  focusmon,       {.i = -1 } },
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
+  { MODKEY|ShiftMask,              XK_y, spawn,            SHCMD("flameshot gui") },
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
 	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
-    /// TODO: Do something about the show/hide feat in awesomebar
-	// { MODKEY,                       XK_s,      show,           {0} },
-	{ MODKEY|ShiftMask,             XK_s,      showall,        {0} },
-	// { MODKEY|ControlMask,           XK_h,      hide,           {0} },
-	// { MODKEY|ControlMask,           XK_l,      spawn,          SHCMD("/run/wrappers/bin/slock") },
-
-    // Audio Mute
-    { 0,                            XF86XK_AudioMute,           spawn,          SHCMD("pactl set-sink-mute @DEFAULT_SINK@ toggle; pkill -RTMIN+1 dwmblocks") },
-    // Audio Lower Volume
-    { 0,                            XF86XK_AudioLowerVolume,    spawn,          SHCMD("pactl set-sink-volume @DEFAULT_SINK@ -3%; pkill -RTMIN+1 dwmblocks") },
-    // Audio Raise Volume
-    { 0,                            XF86XK_AudioRaiseVolume,    spawn,          SHCMD("pactl set-sink-volume @DEFAULT_SINK@ +3%; pkill -RTMIN+1 dwmblocks") },
-    // Brightness Up
-    { 0,                            XF86XK_MonBrightnessUp,     spawn,          SHCMD("brightnessctl set +5%; pkill -RTMIN+2 dwmblocks") },
-    // Brightness Down
-    { 0,                            XF86XK_MonBrightnessDown,   spawn,          SHCMD("brightnessctl set 5%-; pkill -RTMIN+2 dwmblocks") },
-    // Screenshot
-    { 0,                            XK_Print,                   spawn,          {.v = flameshot} },
 	TAGKEYS(                        XK_1,                      0)
 	TAGKEYS(                        XK_2,                      1)
 	TAGKEYS(                        XK_3,                      2)
@@ -198,9 +119,7 @@ static const Key keys[] = {
 	TAGKEYS(                        XK_7,                      6)
 	TAGKEYS(                        XK_8,                      7)
 	TAGKEYS(                        XK_9,                      8)
-    TAGKEYS(                        XK_s,                      9)
-	{ MODKEY|ShiftMask,             XK_e,      quit,           {0} },
-	{ MODKEY|ShiftMask,             XK_c,      quit,           {.i = 1} },
+	{ MODKEY|ShiftMask,             XK_q,      quit,           {0} },
 };
 
 /* button definitions */
@@ -209,19 +128,31 @@ static const Button buttons[] = {
 	/* click                event mask      button          function        argument */
 	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0} },
 	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[2]} },
-	{ ClkWinTitle,          0,              Button1,        togglewin,      {0} },
-	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
-	{ ClkStatusText,        0,              Button1,        sigstatusbar,   {.i = 1} },
-	{ ClkStatusText,        0,              Button2,        sigstatusbar,   {.i = 2} },
-	{ ClkStatusText,        0,              Button3,        sigstatusbar,   {.i = 3} },
+	{ ClkStatusText,        0,              Button2,        spawn,          {.v = termcmd } },
 	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0} },
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
 	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
-	{ ClkTagBar,            0,              Button1,        viewworkspace,  {0} },
-    // TODO: Use workspace instead
-    // { ClkTagBar,            0,              Button3,        toggleview,     {0} },
-	// { ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
-	// { ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
+	{ ClkTagBar,            0,              Button1,        view,           {0} },
+	{ ClkTagBar,            0,              Button3,        toggleview,     {0} },
+	{ ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
+	{ ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
 };
 
-#endif
+static const char *ipcsockpath = "/tmp/dwm.sock";
+static IPCCommand ipccommands[] = {
+  IPCCOMMAND(  view,                1,      {ARG_TYPE_UINT}   ),
+  IPCCOMMAND(  toggleview,          1,      {ARG_TYPE_UINT}   ),
+  IPCCOMMAND(  tag,                 1,      {ARG_TYPE_UINT}   ),
+  IPCCOMMAND(  toggletag,           1,      {ARG_TYPE_UINT}   ),
+  IPCCOMMAND(  tagmon,              1,      {ARG_TYPE_UINT}   ),
+  IPCCOMMAND(  focusmon,            1,      {ARG_TYPE_SINT}   ),
+  IPCCOMMAND(  focusstack,          1,      {ARG_TYPE_SINT}   ),
+  IPCCOMMAND(  zoom,                1,      {ARG_TYPE_NONE}   ),
+  IPCCOMMAND(  incnmaster,          1,      {ARG_TYPE_SINT}   ),
+  IPCCOMMAND(  killclient,          1,      {ARG_TYPE_SINT}   ),
+  IPCCOMMAND(  togglefloating,      1,      {ARG_TYPE_NONE}   ),
+  IPCCOMMAND(  setmfact,            1,      {ARG_TYPE_FLOAT}  ),
+  IPCCOMMAND(  setlayoutsafe,       1,      {ARG_TYPE_PTR}    ),
+  IPCCOMMAND(  quit,                1,      {ARG_TYPE_NONE}   )
+};
+
