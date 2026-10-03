@@ -56,7 +56,7 @@ scroll(Monitor *m)
 
         setwindowattr(c, "_PICOM_ANIMATE", 1);
 
-        resize(c, x, m->wy, width, m->wh, borderpx, 0);
+        resize(c, x, m->wy, width - (2 * borderpx), m->wh - (2 * borderpx), borderpx, 0);
 
         x += width;
     }
