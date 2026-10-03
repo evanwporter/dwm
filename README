@@ -3,3 +3,8 @@ dwm - dynamic window manager
 dwm is an extremely fast, small, and dynamic window manager for X.
 
 Contains my patches as well my custom tree mode. Tree mode is binary space partition.
+
+TODO:
+
+* Switching to spoticy scratchpad always goes to spotify rather than my last window
+* Restarting opens 2 and 4 simultaneously

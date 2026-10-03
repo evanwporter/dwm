@@ -2500,6 +2500,7 @@ setfullscreen(Client *c, int fullscreen)
 void
 setlayout(const Arg *arg)
 {
+    const Layout *old = PERWS(selmon)->lt[PERWS(selmon)->sellt];
 	/* Toggle the selected layout if:
 	 *    - a NULL argument was passed to setlayout or
 	 *    - an argument with value of 0 was passed to setlayout or
@@ -2531,9 +2532,17 @@ setlayout(const Arg *arg)
 		 * argument. */
 		PERWS(selmon)->lt[PERWS(selmon)->sellt] = (Layout *)arg->v;
 
+    const Layout *new = PERWS(selmon)->lt[PERWS(selmon)->sellt];
+
+    /*
+     * We are actually leaving old, so run its exit hook.
+     */
+    if (old != new && old->exit)
+        old->exit(selmon);
+
 	/* Copy the layout symbol of the given layout into the monitor's layout symbol. This is
 	 * later used when drawing the layout symbol on the bar. */
-	strncpy(PERWS(selmon)->ltsymbol, PERWS(selmon)->lt[PERWS(selmon)->sellt]->symbol, sizeof PERWS(selmon)->ltsymbol);
+    strncpy(PERWS(selmon)->ltsymbol, PERWS(selmon)->lt[PERWS(selmon)->sellt]->symbol, sizeof PERWS(selmon)->ltsymbol);
 
 	/* If there are visible clients on the current monitor then we apply a full arrange to make
 	 * clients resize and reposition according to the new layout. */

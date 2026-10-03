@@ -65,7 +65,10 @@ scroll(Monitor *m)
 void
 scroll_exit(Monitor *m)
 {
-    (void)(m);
+    Client *c;
+
+    for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
+        setwindowattr(c, "_PICOM_ANIMATE", 0);
 }
 
 void
