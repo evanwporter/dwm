@@ -232,6 +232,10 @@ struct Client {
 
     /// The icon to display in the tabline / window titles
     char *icon;
+
+    /// Client Scroll Width
+    /// TODO
+    int scrollw;
 };
 
 typedef struct {
@@ -244,6 +248,7 @@ typedef struct {
 typedef struct {
 	const char *symbol;
 	void (*arrange)(Monitor *);
+    void (*exit)(Monitor *);
 } Layout;
 
 struct Monitor {
@@ -349,6 +354,9 @@ struct Monitor {
 
 	/* This is the bar window which is used to draw the bar. Each monitor has their own bar. */
 	Window barwin;
+
+    /// For the SCROLL layout this is the percentage that defines the left edge of the screen
+    int anchor;
 };
 
 typedef struct Workspace {
@@ -519,6 +527,7 @@ void setlayout(const Arg *arg);
 void setmfact(const Arg *arg);
 void setup(void);
 void seturgent(Client *c, int urg);
+void setwindowattr(Client *c, const char *name, const unsigned long value);
 void show(const Arg *arg);
 void showall(const Arg *arg);
 void showwin(Client *c);

@@ -40,6 +40,14 @@ restack(Monitor *m)
 }
 
 void
+setwindowattr(Client *c, const char *name, const unsigned long value)
+{
+    (void)c;
+    (void)name;
+    (void)value;
+}
+
+void
 arrange(Monitor *m)
 {
     (void)m;
@@ -48,13 +56,19 @@ arrange(Monitor *m)
 void
 resize(Client *c, int x, int y, int w, int h, int bw, int interact)
 {
-    (void)c;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    (void)bw;
     (void)interact;
+
+    c->oldx = c->x;
+    c->oldy = c->y;
+    c->oldw = c->w;
+    c->oldh = c->h;
+    c->oldbw = c->bw;
+
+    c->x = x;
+    c->y = y;
+    c->w = w;
+    c->h = h;
+    c->bw = bw;
 }
 
 Client *
@@ -65,7 +79,6 @@ nexttiled(Client *c)
 
     return c;
 }
-
 
 /* -------------------------------------------------------------------------- */
 /* Layouts                                                                    */
@@ -266,6 +279,41 @@ movemouse(const Arg *arg)
 
 void
 resizemouse(const Arg *arg)
+{
+    (void)arg;
+}
+
+
+// TODO: put somewhere
+void
+focusstackvis(const Arg *arg)
+{
+    Client *c = NULL, *i;
+
+    if (!selmon || !selmon->sel)
+        return;
+
+    if (arg->i > 0) { // inc move forward
+        if (!(c = nexttiled(selmon->sel->next)))
+            c = nexttiled(selmon->clients);
+    } else {
+        for (i = selmon->clients; i != selmon->sel; i = i->next)
+            if (!i->isfloating && ISVISIBLE(i))
+                c = i;
+
+        if (!c) {
+            for (; i; i = i->next)
+                if (!i->isfloating && ISVISIBLE(i))
+                    c = i;
+        }
+    }
+
+    if (c)
+        focus(c);
+}
+
+void
+setmfact(const Arg *arg)
 {
     (void)arg;
 }

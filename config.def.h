@@ -6,6 +6,7 @@
 #include "deck.h"
 #include "dwm.h"
 #include "conveyor.h"
+#include "scroll.h"
 #include "palette.h"
 #include "tree.h"
 
@@ -92,7 +93,8 @@ static const Layout layouts[] = {
 	{ "><>",      NULL },    /* no layout function means floating behavior */
     { "[T]",      tree },
     { "[D]",      deck },
-    { "[C]",      conveyor }
+    // { "[C]",      conveyor },
+    { "[S]",      scroll,      scroll_exit}
 };
 
 /* key definitions */
@@ -201,6 +203,8 @@ static const Key keys[] = {
     TAGKEYS(                        XK_s,                      9)
 	{ MODKEY|ShiftMask,             XK_e,      quit,           {0} },
 	{ MODKEY|ShiftMask,             XK_c,      quit,           {.i = 1} },
+    { MODKEY,                       XK_equal,  scroll_increase_width, {} },
+    { MODKEY,                       XK_minus,  scroll_decrease_width, {} }
 };
 
 /* button definitions */

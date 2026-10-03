@@ -1759,6 +1759,10 @@ manage(Window w, XWindowAttributes *wa)
 	 * unmanaging a client that is not destroyed. */
 	c->oldbw = wa->border_width;
 
+    // TODO: We need to make a config value for the default scrollwidth
+    // Set the default width of new windows in the scrolling layout
+    c->scrollw = 33;
+
 	/* Reads and stores the window title in the client's name variable. */
 	updatetitle(c);
 
@@ -2016,6 +2020,7 @@ nexttiled(Client *c)
 	/* Return the client found, if any, will be NULL if the linked list is exhausted. */
 	return c;
 }
+
 
 void
 pop(Client *c)
@@ -2495,6 +2500,7 @@ setfullscreen(Client *c, int fullscreen)
 void
 setlayout(const Arg *arg)
 {
+    const Layout *old = PERWS(selmon)->lt[PERWS(selmon)->sellt];
 	/* Toggle the selected layout if:
 	 *    - a NULL argument was passed to setlayout or
 	 *    - an argument with value of 0 was passed to setlayout or
@@ -2526,9 +2532,17 @@ setlayout(const Arg *arg)
 		 * argument. */
 		PERWS(selmon)->lt[PERWS(selmon)->sellt] = (Layout *)arg->v;
 
+    const Layout *new = PERWS(selmon)->lt[PERWS(selmon)->sellt];
+
+    /*
+     * We are actually leaving old, so run its exit hook.
+     */
+    if (old != new && old->exit)
+        old->exit(selmon);
+
 	/* Copy the layout symbol of the given layout into the monitor's layout symbol. This is
 	 * later used when drawing the layout symbol on the bar. */
-	strncpy(PERWS(selmon)->ltsymbol, PERWS(selmon)->lt[PERWS(selmon)->sellt]->symbol, sizeof PERWS(selmon)->ltsymbol);
+    strncpy(PERWS(selmon)->ltsymbol, PERWS(selmon)->lt[PERWS(selmon)->sellt]->symbol, sizeof PERWS(selmon)->ltsymbol);
 
 	/* If there are visible clients on the current monitor then we apply a full arrange to make
 	 * clients resize and reposition according to the new layout. */
@@ -3096,6 +3110,27 @@ spawn(const Arg *arg)
 		 * command before calling exit to ensure that this process stops running. */
 		die("dwm: execvp '%s' failed:", ((char **)arg->v)[0]);
 	}
+}
+
+/// Set the X11 window attribute for matching rules in Picom
+void
+setwindowattr(Client *c, const char *name, const unsigned long value)
+{
+    if (!dpy)
+        return;
+
+    const Atom atom = XInternAtom(dpy, name, False);
+
+    XChangeProperty(
+        dpy,
+        c->win,
+        atom,
+        XA_CARDINAL,
+        32,
+        PropModeReplace,
+        (const unsigned char *)&value,
+        1
+    );
 }
 
 // Send the client to a different workspace

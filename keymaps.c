@@ -1,5 +1,6 @@
 #include "conveyor.h"
 #include "dwm.h"
+#include "scroll.h"
 #include "tree.h"
 
 #include <string.h>
@@ -36,6 +37,11 @@ key_move(const Arg *arg)
 
     if (in_conveyor()) {
         conveyor_move(arg);
+        return;
+    }
+
+    if (in_scroll()) {
+        scroll_move(arg);
         return;
     }
 
