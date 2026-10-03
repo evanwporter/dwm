@@ -3819,10 +3819,15 @@ viewworkspace(const Arg *arg)
     if (!CHECK_WS_BOUNDS(arg->ui))
         return;
 
-	/* If the given workspace is the same as what is currently shown then do nothing. This makes
-	 * it so that if you are on workspace 7 and you hit MOD+7 then nothing happens. */
-    if (WORKSPACEBIT(arg->ui) & selmon->selected_workspaces[selmon->sel_ws])
-		return;  // Already on this workspace
+	/* If the given workspace is the same as what is currently shown then toggle the workspace. 
+     * Ie: if you on workspace 6 and you hit MOD+7, you go to workspace 7. If you hit it again
+     * then you go back to workspace 6. */
+    if (WORKSPACEBIT(arg->ui) & selmon->selected_workspaces[selmon->sel_ws]) {
+        selmon->sel_ws ^= 1; // flip the selected workspace bit
+        focus(NULL);
+        arrange(selmon);
+        return;
+    }
 
 	/* This toggles between the previous and current tagset. */
 	selmon->sel_ws ^= 1; /* toggle selected workspace */
