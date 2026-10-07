@@ -6,6 +6,7 @@
 #include "deck.h"
 #include "dwm.h"
 #include "conveyor.h"
+#include "tilegap.h"
 #include "palette.h"
 #include "tree.h"
 
@@ -14,6 +15,7 @@
 
 /* appearance */
 static const unsigned int borderpx       = 3;   /* border pixel of windows */
+static const unsigned int gappx          = 30;   /* gaps used by the tilegap layout */
 static const unsigned int snap           = 32;  /* snap pixel */
 static const int swallowfloating         = 0;   /* 1 means swallow floating windows by default */
 static const unsigned int systraypinning = 0;   /* 0: sloppy systray follows selected monitor, >0: pin systray to monitor X */
@@ -89,6 +91,7 @@ static const Layout layouts[] = {
 	/* symbol     arrange function */
 	{ "[M]",      monocle },
 	{ "[]=",      tile },    /* first entry is default */
+	{ "[]+",      tilegap },
 	{ "><>",      NULL },    /* no layout function means floating behavior */
     { "[T]",      tree },
     { "[D]",      deck },
@@ -159,10 +162,11 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_q,      killclient,     {0} },
 	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[1]} },
-	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[2]} },
-    { MODKEY,                       XK_r,      setlayout,      {.v = &layouts[3]} },
-    { MODKEY|ShiftMask,             XK_d,      setlayout,      {.v = &layouts[4]} },
-    { MODKEY,                       XK_c,      setlayout,      {.v = &layouts[5]} },
+	{ MODKEY,                       XK_g,      setlayout,      {.v = &layouts[2]} },
+	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[3]} },
+	{ MODKEY,                       XK_r,      setlayout,      {.v = &layouts[4]} },
+	{ MODKEY|ShiftMask,             XK_d,      setlayout,      {.v = &layouts[5]} },
+	{ MODKEY,                       XK_c,      setlayout,      {.v = &layouts[6]} },
 	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
     // TODO: Use workspace instead
@@ -208,7 +212,7 @@ static const Key keys[] = {
 static const Button buttons[] = {
 	/* click                event mask      button          function        argument */
 	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0} },
-	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[2]} },
+	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[3]} },
 	{ ClkWinTitle,          0,              Button1,        togglewin,      {0} },
 	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
 	{ ClkStatusText,        0,              Button1,        sigstatusbar,   {.i = 1} },
