@@ -36,7 +36,7 @@ config.h: config.def.h
 	cp $< $@
 
 clean:
-	rm -f dwm ${OBJ}
+	rm -f dwm ${OBJ} ${DEP}
 	rm -f tests ${TEST_OBJ} ${UTIL_OBJ}
 
 tests: ${TEST_OBJ} ${UTIL_OBJ}
