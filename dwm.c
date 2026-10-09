@@ -1064,8 +1064,16 @@ drawstatusbar(Monitor *m, int bh, char* stext) {
 	x = m->ww - w - getsystraywidth();
 
 	drw_setscheme(drw, scheme[LENGTH(colors)]);
-	drw->scheme[ColFg] = scheme[SchemeStatus][ColFg];
-	drw->scheme[ColBg] = scheme[SchemeStatus][ColBg];
+	/*
+	 * The last scheme is a mutable status-bar scheme.  It owns its Xft
+	 * colours; copying XftColor values from SchemeStatus here would make two
+	 * schemes free the same server-side allocation during cleanup.  Reset the
+	 * mutable foreground/background instead so each allocation has one owner.
+	 */
+	drw_clr_free(drw, &drw->scheme[ColFg]);
+	drw_clr_create(drw, &drw->scheme[ColFg], colors[SchemeStatus][ColFg]);
+	drw_clr_free(drw, &drw->scheme[ColBg]);
+	drw_clr_create(drw, &drw->scheme[ColBg], colors[SchemeStatus][ColBg]);
 	drw_rect(drw, x, 0, w, bh, 1, 1);
     x += horizpadbar / 2;
 
@@ -1087,17 +1095,21 @@ drawstatusbar(Monitor *m, int bh, char* stext) {
 					char buf[8];
 					memcpy(buf, (char*)text+i+1, 7);
 					buf[7] = '\0';
+					drw_clr_free(drw, &drw->scheme[ColFg]);
 					drw_clr_create(drw, &drw->scheme[ColFg], buf);
 					i += 7;
 				} else if (text[i] == 'b') {
 					char buf[8];
 					memcpy(buf, (char*)text+i+1, 7);
 					buf[7] = '\0';
+					drw_clr_free(drw, &drw->scheme[ColBg]);
 					drw_clr_create(drw, &drw->scheme[ColBg], buf);
 					i += 7;
 				} else if (text[i] == 'd') {
-					drw->scheme[ColFg] = scheme[SchemeStatus][ColFg];
-					drw->scheme[ColBg] = scheme[SchemeStatus][ColBg];
+					drw_clr_free(drw, &drw->scheme[ColFg]);
+					drw_clr_create(drw, &drw->scheme[ColFg], colors[SchemeStatus][ColFg]);
+					drw_clr_free(drw, &drw->scheme[ColBg]);
+					drw_clr_create(drw, &drw->scheme[ColBg], colors[SchemeStatus][ColBg]);
 				} else if (text[i] == 'r') {
 					int rx = atoi(text + ++i);
 					while (text[++i] != ',');
@@ -2830,7 +2842,8 @@ setup(void)
 
 	/* Initialise colour schemes. Allocate memory to hold pointers to all colour schemes. */
 	scheme = ecalloc(LENGTH(colors) + 1, sizeof(Clr *));
-	scheme[LENGTH(colors)] = drw_scm_create(drw, colors[0], 3);
+	/* Reserve one independently-owned, mutable scheme for status markup. */
+	scheme[LENGTH(colors)] = drw_scm_create(drw, colors[SchemeStatus], 3);
 
 	/* Loop through all the entries in the colors array */
 	for (i = 0; i < LENGTH(colors); i++)
