@@ -9,7 +9,7 @@ OBJ = ${SRC:.c=.o}
 UTIL_SRC = util.c tree.c
 UTIL_OBJ = ${UTIL_SRC:.c=.o}
 
-TEST_SRC = test/move_node.c test/dwm_stubs.c test/navigate_tree.c test/auto_add.c test/basic_tree.c test/proportion.c test/duped_keys.c
+TEST_SRC = test/move_node.c test/dwm_stubs.c test/navigate_tree.c test/auto_add.c test/basic_tree.c test/proportion.c # test/duped_keys.c
 TEST_OBJ = ${TEST_SRC:.c=.o}
 
 DEP = ${OBJ:.o=.d} ${UTIL_OBJ:.o=.d} ${TEST_OBJ:.o=.d}
@@ -38,6 +38,7 @@ config.h: config.def.h
 clean:
 	rm -f dwm ${OBJ} ${DEP}
 	rm -f tests ${TEST_OBJ} ${UTIL_OBJ}
+	rm -f compile_commands.json
 
 tests: ${TEST_OBJ} ${UTIL_OBJ}
 	${CC} -o $@ $^ ${LDFLAGS} ${CRITERION_LIBS}

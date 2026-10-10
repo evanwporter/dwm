@@ -7,50 +7,43 @@
 		self,
 		nixpkgs,
 	}: let
-		supportedSystems = ["x86_64-linux" "aarch64-linux"];
-		forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+		system = "x86_64-linux";
+		pkgs = nixpkgs.legacyPackages.${system};
+		packages = import ./nix pkgs;
 	in {
-		packages =
-			forAllSystems (system: let
-					pkgs = nixpkgs.legacyPackages.${system};
-				in {
-					default =
-						pkgs.stdenv.mkDerivation {
-							pname = "dwm";
-							version = "6.8";
-							src = self;
+		packages.${system} = {
+			default = packages.dwm;
+			dwm = packages.dwm;
+			dwm-tests = packages.dwm-tests;
+		};
 
-							nativeBuildInputs = [pkgs.pkg-config];
-							buildInputs = with pkgs; [
-								fontconfig
-								freetype
-								libx11
-								libXcursor
-								libxcb
-								libxft
-								libxinerama
-							];
+		app.${system} = {
+			dwm = {
+				type = "app";
+				program = packages.dwm.out;
+			};
 
-							installFlags = ["PREFIX=$(out)"];
-						};
-				});
+			dwm-tests = {
+				type = "app";
+				program = packages.dwm-tests.out;
+			};
+		};
 
-		devShells =
-			forAllSystems (system: let
-					pkgs = nixpkgs.legacyPackages.${system};
-				in {
-					default =
-						pkgs.mkShell {
-							inputsFrom = [self.packages.${system}.default];
-							packages = with pkgs; [
-								bear
-								clang-tools
-								criterion
-								gnumake
-								jq
-								pkg-config
-							];
-						};
-				});
+		devShells.${system} = {
+			default =
+				pkgs.mkShell {
+					inputsFrom = [self.packages.${system}.default];
+					packages = with pkgs; [
+						bear
+						clang-tools
+						criterion
+						gnumake
+						jq
+						pkg-config
+						kati
+						ninja
+					];
+				};
+		};
 	};
 }
