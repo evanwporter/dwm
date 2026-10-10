@@ -29,6 +29,11 @@
 			};
 		};
 
+		hydraJobs = {
+			dwm = packages.dwm;
+			dwm-tests = packages.dwm-tests;
+		};
+
 		devShells.${system} = {
 			default =
 				pkgs.mkShell {
